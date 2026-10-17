@@ -6,11 +6,11 @@
 | [#2](https://github.com/Bojan-Ivanovski/foltivo-backend/issues/2) | Versioned database schema migrations | #1 |
 | [#3](https://github.com/Bojan-Ivanovski/foltivo-backend/issues/3) | Go account authentication and sessions | #1 |
 
-Start by analysing #2's database/migration choice and #3's Go authentication
-approach. Their analysis can proceed together. Persistent authentication delivery
-must use the chosen application schema lifecycle; this does not require delaying
-the identity/session contract discussion until migration implementation ends.
-Neither Goose nor an authentication library/provider is selected yet.
+Backend #2 selects PostgreSQL 18, pgx and embedded Goose migrations; implementation
+and verification are prepared for review. Complete its delivery before persistent
+authentication implementation in #3. Authentication analysis can proceed alongside
+migration work. The identity/session contract discussion does not need to wait
+for migration delivery. No authentication library/provider is selected yet.
 
 Default independent release work to #1; create bounded children for an existing
 outcome where needed. Ordinary group parents use the work-item template. Use

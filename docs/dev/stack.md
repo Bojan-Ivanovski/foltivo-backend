@@ -9,19 +9,22 @@
 - Product name: **Foltivo**. Intended public domain: **foltivo.com**. This does not
   establish deployment, API subdomains, mail addresses or authentication callbacks.
 
-## Current state
+## Selected database infrastructure
 
-The repository contains a minimal standard-library HTTP server in cmd/api.
-Run `go run ./cmd/api`; `GET /health` returns HTTP 200 and
-`{"status":"ok"}`. HTTP_ADDR overrides the default :8080 listen address.
-The endpoint reports process liveness, not dependency readiness. No database,
-external Go dependencies or deployment are implemented. No go.sum is needed
-until dependencies require it.
+Backend #2 selects PostgreSQL 18, pgx v5 and Goose v3 with embedded SQL migrations.
+Local Docker Compose pins `postgres:18.6-bookworm`; the database is bound to
+localhost and uses a named volume. A separate `cmd/migrate` executable applies
+reviewed migrations with a PostgreSQL session advisory lock. The API never
+migrates on startup. See [database development](database.md) for configuration,
+commands, deployment ownership and recovery expectations.
+
+The standard-library HTTP server in cmd/api uses net/http and ServeMux.
+`GET /health` returns process liveness; `GET /ready` verifies database connectivity.
+HTTP_ADDR overrides :8080. DATABASE_URL is required. SIGINT/SIGTERM shut down
+gracefully. A database outage leaves liveness available and readiness unavailable.
 
 ## Pending decisions
 
-- Database engine, driver and migration approach: backend #2. Goose is a
-  candidate, not an installed/selected dependency.
 - Authentication libraries/service composition: backend #3. The application and
   authentication design must respect the developer's Go direction; no Better
   Auth/Node service is selected. Factor, recovery and assurance contracts still
