@@ -28,7 +28,7 @@ func (s *Service) ConfigurePasskeys(origin string) error {
 	if err != nil {
 		return err
 	}
-	s.webAuthn, err = wa.New(&wa.Config{RPID: parsed.Hostname(), RPDisplayName: "Foltivo", RPOrigins: []string{origin}, AuthenticatorSelection: protocol.AuthenticatorSelection{UserVerification: protocol.VerificationRequired}, AttestationPreference: protocol.PreferNoAttestation})
+	s.webAuthn, err = wa.New(&wa.Config{RPID: parsed.Hostname(), RPDisplayName: "Foltivo", RPOrigins: []string{origin}, AuthenticatorSelection: protocol.AuthenticatorSelection{UserVerification: protocol.VerificationRequired, ResidentKey: protocol.ResidentKeyRequirementRequired}, AttestationPreference: protocol.PreferNoAttestation})
 	s.webOrigin = origin
 	return err
 }
@@ -161,7 +161,7 @@ func (s *Service) BeginPasskey(ctx context.Context, current *Session, peer, kind
 		if len(user.credentials) == 0 {
 			return s.decoyAssertion()
 		}
-		options, data, err = s.webAuthn.BeginLogin(user, wa.WithLoginOrigin(s.webOrigin), wa.WithUserVerification(protocol.VerificationRequired))
+		options, data, err = s.webAuthn.BeginLogin(user, wa.WithLoginOrigin(s.webOrigin), wa.WithUserVerification(protocol.VerificationRequired), wa.WithAllowedCredentials(nil))
 	}
 	if err != nil {
 		return nil, Validation("Unable to start passkey authentication.")
@@ -390,20 +390,13 @@ func (s *Service) RemovePasskey(ctx context.Context, current *Session, id string
 	return safe(tx.Commit(ctx))
 }
 
-// Unknown and password-only accounts receive equally usable-looking options.
-// No ceremony is stored for these options, so finish always fails generically.
+// Unknown and password-only accounts receive the same discoverable assertion
+// shape, without stable credential IDs or counts. No ceremony is stored for
+// them, so finish always fails generically. User verification remains required.
 func (s *Service) decoyAssertion() (any, error) {
-	challenge, err := NewToken()
-	if err != nil {
-		return nil, err
-	}
-	credential, err := NewToken()
-	if err != nil {
-		return nil, err
-	}
-	origin, err := url.Parse(s.webOrigin)
+	options, _, err := s.webAuthn.BeginDiscoverableLogin(wa.WithLoginOrigin(s.webOrigin), wa.WithUserVerification(protocol.VerificationRequired))
 	if err != nil {
 		return nil, Unavailable
 	}
-	return map[string]any{"publicKey": map[string]any{"challenge": challenge, "rpId": origin.Hostname(), "timeout": 60000, "userVerification": "required", "allowCredentials": []any{map[string]string{"type": "public-key", "id": credential}}}}, nil
+	return options, nil
 }

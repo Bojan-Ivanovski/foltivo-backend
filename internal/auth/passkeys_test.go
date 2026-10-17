@@ -48,10 +48,11 @@ func TestIntegrationPasskeyCeremonyBoundaries(t *testing.T) {
 			Challenge              string `json:"challenge"`
 			AuthenticatorSelection struct {
 				UV string `json:"userVerification"`
+				RK string `json:"residentKey"`
 			} `json:"authenticatorSelection"`
 		} `json:"publicKey"`
 	}
-	if json.Unmarshal(encoded, &object) != nil || object.PublicKey.Challenge == "" || object.PublicKey.AuthenticatorSelection.UV != "required" {
+	if json.Unmarshal(encoded, &object) != nil || object.PublicKey.Challenge == "" || (object.PublicKey.AuthenticatorSelection.UV != "required" || object.PublicKey.AuthenticatorSelection.RK != "required") {
 		t.Fatal("registration did not require user verification")
 	}
 	// A different browser cannot consume this session's ceremony.
@@ -65,10 +66,34 @@ func TestIntegrationPasskeyCeremonyBoundaries(t *testing.T) {
 	}
 	_, err = s.FinishPasskey(ctx, current, "peer", "registration", []byte(`{}`))
 	assertStatus(t, err, 401)
+	shape := ""
+	assertionShape := func(value any) string {
+		encoded, _ := json.Marshal(value)
+		var data map[string]any
+		if json.Unmarshal(encoded, &data) != nil {
+			t.Fatal("invalid assertion JSON")
+		}
+		public, ok := data["publicKey"].(map[string]any)
+		if !ok {
+			t.Fatal("missing publicKey")
+		}
+		if _, exists := public["allowCredentials"]; exists {
+			t.Fatal("public assertion exposed credential IDs/count")
+		}
+		delete(public, "challenge")
+		normalized, _ := json.Marshal(data)
+		return string(normalized)
+	}
 	for _, email := range []string{"unknown@example.com", "passkey@example.com"} {
 		anonymous := mustSession(t, s, "")
-		if _, err = s.BeginPasskey(ctx, anonymous, "peer", "login", email); err != nil {
+		options, err := s.BeginPasskey(ctx, anonymous, "peer", "login", email)
+		if err != nil {
 			t.Fatal("passkey begin disclosed missing account or method")
+		}
+		if shape == "" {
+			shape = assertionShape(options)
+		} else if assertionShape(options) != shape {
+			t.Fatal("unknown and password-only assertion shapes differ")
 		}
 		_, err = s.FinishPasskey(ctx, anonymous, "peer", "login", []byte(`{}`))
 		assertStatus(t, err, 401)
@@ -102,8 +127,12 @@ func TestIntegrationPasskeyCeremonyBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	anon := mustSession(t, s, "")
-	if _, err = s.BeginPasskey(ctx, anon, "peer", "login", a.Email); err != nil {
+	options, err = s.BeginPasskey(ctx, anon, "peer", "login", a.Email)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if assertionShape(options) != shape {
+		t.Fatal("enrolled assertion disclosed account or credential metadata")
 	}
 	_, err = s.FinishPasskey(ctx, anon, "peer", "login", []byte(`{"id":"Zml4dHVyZS1jcmVkZW50aWFs","rawId":"Zml4dHVyZS1jcmVkZW50aWFs","type":"public-key","response":{"clientDataJSON":"e30","authenticatorData":"AA","signature":"AA"}}`))
 	assertStatus(t, err, 401)

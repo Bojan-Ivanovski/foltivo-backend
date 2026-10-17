@@ -94,7 +94,9 @@ current session and revoke/rotate as required; no stale pending-session upgrade.
 
 ## Passkeys
 
-Use go-webauthn/webauthn. Require user verification and validate RP ID/origin.
+Use go-webauthn/webauthn. Require discoverable resident credentials and user
+verification, and validate RP ID/origin. Public assertion options omit credential
+IDs/counts and use the same shape for unknown, password-only and passkey accounts.
 Challenges are short-lived, one-use and bound to the initiating browser session
 and ceremony. A credential does not itself grant resource permissions.
 

@@ -70,7 +70,11 @@ The RP ID is the hostname of APP_ORIGIN. For local passkey use set
 `APP_ORIGIN=http://localhost:5173` and browse that hostname; numeric IP addresses
 cannot be WebAuthn RP IDs. The API can still listen on 127.0.0.1. Production must
 use its stable HTTPS hostname: changing it changes the passkey trust boundary.
-User verification is required for enrollment and sign-in. Full library challenge
+Discoverable (resident) credentials and user verification are required for
+enrollment. Sign-in options omit credential IDs/counts for every email; unknown,
+password-only and passkey accounts receive the same public option shape. Finish
+still validates the selected account, user handle, credential ownership and UV.
+Full library challenge
 state is persisted for five minutes, bound to the browser session, ceremony,
 account and security version. A finish attempt consumes the ceremony even when
 invalid. Origin, RP, signature and UV validation are delegated to the library;
