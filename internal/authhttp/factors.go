@@ -24,7 +24,7 @@ func (h *Handler) confirmTOTP(w http.ResponseWriter, r *http.Request, s *auth.Se
 	if err := decode(w, r, &dto); err != nil {
 		return err
 	}
-	codes, err := h.service.ConfirmTOTP(r.Context(), s, peer(r), dto.Code)
+	codes, err := h.service.ConfirmTOTP(r.Context(), s, h.peer(r), dto.Code)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func (h *Handler) challenge(w http.ResponseWriter, r *http.Request, s *auth.Sess
 	if err := decode(w, r, &dto); err != nil {
 		return err
 	}
-	result, err := h.service.Challenge(r.Context(), s, peer(r), dto.Code, dto.RecoveryCode)
+	result, err := h.service.Challenge(r.Context(), s, h.peer(r), dto.Code, dto.RecoveryCode)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (h *Handler) modifyTOTP(remove bool) endpoint {
 		if err := decode(w, r, &dto); err != nil {
 			return err
 		}
-		codes, err := h.service.ModifyTOTP(r.Context(), s, peer(r), dto.Password, dto.Code, remove)
+		codes, err := h.service.ModifyTOTP(r.Context(), s, h.peer(r), dto.Password, dto.Code, remove)
 		if err != nil {
 			return err
 		}

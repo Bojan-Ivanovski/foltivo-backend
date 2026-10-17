@@ -26,7 +26,7 @@ func (h *Handler) beginPasskey(kind string) endpoint {
 			}
 			value = dto.Email
 		}
-		options, err := h.service.BeginPasskey(r.Context(), s, peer(r), kind, value)
+		options, err := h.service.BeginPasskey(r.Context(), s, h.peer(r), kind, value)
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func (h *Handler) finishPasskey(kind string) endpoint {
 		if err := decode(w, r, &body); err != nil {
 			return err
 		}
-		result, err := h.service.FinishPasskey(r.Context(), s, peer(r), kind, body)
+		result, err := h.service.FinishPasskey(r.Context(), s, h.peer(r), kind, body)
 		if err != nil {
 			return err
 		}

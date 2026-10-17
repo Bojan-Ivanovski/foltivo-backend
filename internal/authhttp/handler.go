@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -18,18 +19,19 @@ import (
 )
 
 type Handler struct {
-	service    *auth.Service
-	origin     string
-	secure     bool
-	cookieName string
+	service        *auth.Service
+	origin         string
+	secure         bool
+	cookieName     string
+	trustedProxies []netip.Prefix
 }
 
-func New(service *auth.Service, origin string, secure bool) *Handler {
+func New(service *auth.Service, origin string, secure bool, trusted ...netip.Prefix) *Handler {
 	name := "foltivo_session"
 	if secure {
 		name = "__Host-foltivo_session"
 	}
-	return &Handler{service: service, origin: origin, secure: secure, cookieName: name}
+	return &Handler{service: service, origin: origin, secure: secure, cookieName: name, trustedProxies: append([]netip.Prefix(nil), trusted...)}
 }
 
 type endpoint func(http.ResponseWriter, *http.Request, *auth.Session) error
@@ -37,7 +39,7 @@ type endpoint func(http.ResponseWriter, *http.Request, *auth.Session) error
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/auth/session", func(w http.ResponseWriter, r *http.Request) {
-		session, err := h.service.Session(r.Context(), h.token(r), peer(r), true)
+		session, err := h.service.Session(r.Context(), h.token(r), h.peer(r), true)
 		if err != nil {
 			fail(w, err)
 			return
@@ -89,7 +91,7 @@ func (h *Handler) wrap(fn endpoint, mutation bool) http.HandlerFunc {
 			fail(w, &auth.Error{Status: 403, Code: "origin_rejected", Message: "Request origin is not trusted."})
 			return
 		}
-		session, err := h.service.Session(r.Context(), h.token(r), peer(r), false)
+		session, err := h.service.Session(r.Context(), h.token(r), h.peer(r), false)
 		if err != nil {
 			fail(w, err)
 			return
@@ -113,8 +115,8 @@ func peer(r *http.Request) string {
 	if ip == nil {
 		return "unknown"
 	}
-	// Ignore Forwarded and X-Forwarded-For. Reverse proxies require a separate,
-	// explicit trusted-proxy design before they can supply a client address.
+	// Return only the direct transport peer. Handler.peer applies the explicit
+	// proxy trust policy before considering any forwarding metadata.
 	return ip.String()
 }
 

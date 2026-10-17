@@ -58,7 +58,7 @@ func run() error {
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); service.EmailLoop(workerCtx) }()
 	defer func() { workerCancel(); <-workerDone }()
-	authHandler := authhttp.New(service, authConfig.Origin, authConfig.SecureCookies)
+	authHandler := authhttp.New(service, authConfig.Origin, authConfig.SecureCookies, authConfig.TrustedProxies...)
 	server := &http.Server{
 		Addr:              c.HTTPAddr,
 		Handler:           api.Handler(db, authHandler.Routes()),

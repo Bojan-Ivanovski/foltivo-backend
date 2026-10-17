@@ -93,10 +93,17 @@ PostgreSQL sslmode=verify-full. The deployment must actually provide trusted TLS
 termination; the flag is not TLS implementation. Local HTTP is restricted to
 loopback origins. Migration commands do not need browser-origin configuration.
 
-The server trusts its direct peer address for throttling and ignores arbitrary
-forwarding headers. Deploying behind a proxy requires reviewing shared-peer rate
-limits or an explicitly trusted-proxy address design; do not trust user-supplied
-X-Forwarded-For as a workaround. Operational logs are structured JSON with safe
+The server uses the direct peer for throttling unless that peer matches an
+explicit `TRUSTED_PROXY_CIDRS` entry. Production requires this comma-separated
+list for the actual TLS proxies, preferably exact /32 or /128 addresses. Never
+trust an entire client network or a global /0. The proxy must strip incoming
+X-Forwarded-For or append its verified peer; forwarding client metadata verbatim
+is unsafe. Keep the API network-restricted to those proxies. The server validates
+bounded bare-IP chains from right to left and uses the first untrusted hop;
+untrusted direct peers cannot supply client addresses. Invalid/missing/ambiguous
+metadata falls back to the direct peer bucket, so proxy configuration must be
+verified before production traffic. RFC Forwarded and arbitrary other headers
+are ignored. Operational logs are structured JSON with safe
 known event names; no passwords, cookie tokens, email links or driver details.
 
 ## Security invariants

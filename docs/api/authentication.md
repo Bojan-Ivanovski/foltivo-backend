@@ -66,7 +66,7 @@ Passwords: 15–128 Unicode characters, no silent trimming/truncation. Email and
 name validation/canonicalization are enforced server-side; name is a display
 field, not immutable account identity. Hashing uses bounded Argon2id work and
 secure random salts. Session management and email/login/challenge rate limits
-must survive process restarts. Do not trust arbitrary forwarded-IP headers.
+must survive process restarts. Use only explicitly trusted proxy CIDRs and validated forwarding chains.
 
 Verification/reset mail links use `/verify-email#token=…` and
 `/reset-password#token=…` under configured APP_ORIGIN. Frontend removes the token

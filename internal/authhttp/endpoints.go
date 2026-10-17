@@ -17,7 +17,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request, s *auth.Sessi
 	if err := decode(w, r, &dto); err != nil {
 		return err
 	}
-	if err := h.service.Register(r.Context(), peer(r), dto.Name, dto.Email, dto.Password); err != nil {
+	if err := h.service.Register(r.Context(), h.peer(r), dto.Name, dto.Email, dto.Password); err != nil {
 		return err
 	}
 	write(w, 202, map[string]string{"message": "If this address can be registered, check your email to continue."})
@@ -35,7 +35,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request, s *auth.Session)
 	if err := decode(w, r, &dto); err != nil {
 		return err
 	}
-	next, err := h.service.Login(r.Context(), s, peer(r), dto.Email, dto.Password)
+	next, err := h.service.Login(r.Context(), s, h.peer(r), dto.Email, dto.Password)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (h *Handler) reauthenticate(w http.ResponseWriter, r *http.Request, s *auth
 	if err := decode(w, r, &dto); err != nil {
 		return err
 	}
-	if err := h.service.Reauthenticate(r.Context(), s, peer(r), dto.Password, dto.Code); err != nil {
+	if err := h.service.Reauthenticate(r.Context(), s, h.peer(r), dto.Password, dto.Code); err != nil {
 		return err
 	}
 	write(w, 200, map[string]string{"message": "Identity confirmed."})

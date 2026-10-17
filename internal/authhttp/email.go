@@ -13,7 +13,7 @@ func (h *Handler) requestEmail(purpose string) endpoint {
 		if err := decode(w, r, &dto); err != nil {
 			return err
 		}
-		if err := h.service.RequestEmail(r.Context(), peer(r), dto.Email, purpose); err != nil {
+		if err := h.service.RequestEmail(r.Context(), h.peer(r), dto.Email, purpose); err != nil {
 			return err
 		}
 		write(w, 202, map[string]string{"message": "If the account is eligible, an email has been queued. Please check your inbox shortly."})
@@ -29,7 +29,7 @@ func (h *Handler) consumeEmail(purpose string) endpoint {
 		if err := decode(w, r, &dto); err != nil {
 			return err
 		}
-		if err := h.service.LimitEmailConsumption(r.Context(), peer(r)); err != nil {
+		if err := h.service.LimitEmailConsumption(r.Context(), h.peer(r)); err != nil {
 			return err
 		}
 		if err := h.service.ConsumeEmail(r.Context(), dto.Token, purpose, dto.Password); err != nil {
@@ -48,7 +48,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, s *auth
 	if err := decode(w, r, &dto); err != nil {
 		return err
 	}
-	if err := h.service.ChangePassword(r.Context(), s, peer(r), dto.CurrentPassword, dto.Password, dto.Code); err != nil {
+	if err := h.service.ChangePassword(r.Context(), s, h.peer(r), dto.CurrentPassword, dto.Password, dto.Code); err != nil {
 		return err
 	}
 	write(w, 200, map[string]string{"message": "Password changed. Sign in again."})
