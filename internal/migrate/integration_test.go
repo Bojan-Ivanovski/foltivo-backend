@@ -68,7 +68,8 @@ func TestIntegrationMigrationLifecycle(t *testing.T) {
 	db := testDatabase(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	p := provider(t, db, Files())
+	bootstrap, _ := fs.ReadFile(Files(), "00001_bootstrap.sql")
+	p := provider(t, db, fstest.MapFS{"00001_bootstrap.sql": {Data: bootstrap}})
 	var out bytes.Buffer
 	if err := Run(ctx, p, "status", &out); err != nil || !strings.Contains(out.String(), "pending") {
 		t.Fatalf("fresh status: %v %s", err, &out)
@@ -79,7 +80,6 @@ func TestIntegrationMigrationLifecycle(t *testing.T) {
 	if results, err := p.Up(ctx); err != nil || len(results) != 0 {
 		t.Fatalf("repeat apply: %v", err)
 	}
-	bootstrap, _ := fs.ReadFile(Files(), "00001_bootstrap.sql")
 	files := fstest.MapFS{
 		"00001_bootstrap.sql": {Data: bootstrap},
 		"00002_probe.sql":     {Data: []byte("-- +goose Up\nCREATE TABLE migration_probe(id integer);\n-- +goose Down\nDROP TABLE migration_probe;\n")},

@@ -25,10 +25,9 @@ gracefully. A database outage leaves liveness available and readiness unavailabl
 
 ## Pending decisions
 
-- Authentication libraries/service composition: backend #3. The application and
-  authentication design must respect the developer's Go direction; no Better
-  Auth/Node service is selected. Factor, recovery and assurance contracts still
-  require analysis.
+- Backend #3 selects application-owned Go authentication with PostgreSQL-backed
+  opaque cookie sessions and Argon2id. #4 implements the core; email and factor
+  slices #5/#6 remain in progress. See [authentication](authentication.md).
 - The initial server uses net/http and its ServeMux. Additional framework,
   query-layer, job, storage, live collaboration and hosting choices remain open.
 

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,19 +11,26 @@ import (
 	"time"
 
 	"github.com/Bojan-Ivanovski/foltivo-backend/internal/api"
+	"github.com/Bojan-Ivanovski/foltivo-backend/internal/auth"
+	"github.com/Bojan-Ivanovski/foltivo-backend/internal/authhttp"
 	"github.com/Bojan-Ivanovski/foltivo-backend/internal/config"
 	"github.com/Bojan-Ivanovski/foltivo-backend/internal/database"
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	if err := run(); err != nil {
-		log.Print(err)
+		slog.Error("api_failed", "reason", err.Error())
 		os.Exit(1)
 	}
 }
 
 func run() error {
 	c, err := config.Load()
+	if err != nil {
+		return err
+	}
+	authConfig, err := config.LoadAuth(c)
 	if err != nil {
 		return err
 	}
@@ -34,9 +41,14 @@ func run() error {
 		return err
 	}
 	defer db.Close()
+	passwords, err := auth.NewPasswords()
+	if err != nil {
+		return err
+	}
+	authHandler := authhttp.New(auth.NewService(auth.NewStore(db), passwords), authConfig.Origin, authConfig.SecureCookies)
 	server := &http.Server{
 		Addr:              c.HTTPAddr,
-		Handler:           api.Handler(db),
+		Handler:           api.Handler(db, authHandler.Routes()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -45,7 +57,7 @@ func run() error {
 
 	result := make(chan error, 1)
 	go func() { result <- server.ListenAndServe() }()
-	log.Printf("Foltivo API listening on %s", c.HTTPAddr)
+	slog.Info("api_started")
 	select {
 	case err := <-result:
 		if errors.Is(err, http.ErrServerClosed) {
@@ -53,6 +65,7 @@ func run() error {
 		}
 		return errors.New("HTTP server failed to listen")
 	case <-ctx.Done():
+		slog.Info("api_shutdown_started")
 		stop()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -60,6 +73,7 @@ func run() error {
 			_ = server.Close()
 			return errors.New("HTTP server graceful shutdown timed out")
 		}
+		slog.Info("api_stopped")
 		return nil
 	}
 }

@@ -11,7 +11,7 @@ type Pinger interface {
 	Ping(context.Context) error
 }
 
-func Handler(db Pinger) http.Handler {
+func Handler(db Pinger, application ...http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, http.StatusOK, "{\"status\":\"ok\"}\n")
@@ -25,6 +25,9 @@ func Handler(db Pinger) http.Handler {
 		}
 		respond(w, http.StatusOK, "{\"status\":\"ready\"}\n")
 	})
+	if len(application) > 0 {
+		mux.Handle("/api/", application[0])
+	}
 	return mux
 }
 

@@ -4,7 +4,9 @@ Go backend for **Foltivo**, a Markdown-first workspace for connected knowledge,
 writing and collaboration. The selected product domain is **foltivo.com**.
 
 This repository contains a Go REST API, local PostgreSQL infrastructure and an
-embedded Goose schema migration command. Authentication is not implemented yet.
+embedded Goose schema migration command and an initial Go account/session layer.
+See [authentication](docs/dev/authentication.md) for delivery status and security
+boundaries; email and factor lifecycle integration is still in progress.
 
 ## Development
 
@@ -53,6 +55,7 @@ collaboration designs require their own analysis and selection.
 - [Frontend repository](https://github.com/Bojan-Ivanovski/foltivo-frontend)
 - [Account and authentication decision](https://github.com/Bojan-Ivanovski/foltivo-frontend/issues/7)
 - [Development process](docs/dev/process.md)
+- [Authentication contract](docs/api/authentication.md)
 - [Contributing](CONTRIBUTING.md)
 - [Ticket hierarchy and starting order](docs/dev/ticket-hierarchy.md)
 - [Repository agent instructions](AGENTS.md)
