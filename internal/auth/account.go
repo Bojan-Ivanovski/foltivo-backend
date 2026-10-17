@@ -77,10 +77,7 @@ func (s *Service) Reauthenticate(ctx context.Context, current *Session, peer, pa
 	if err := current.RequireAuthenticated(); err != nil {
 		return err
 	}
-	if current.TOTPEnabled {
-		return &Error{Status: 403, Code: "mfa_required", Message: "Second-factor verification is required."}
-	}
-	if code != "" {
+	if !current.TOTPEnabled && code != "" {
 		return Validation("Unexpected authentication code.")
 	}
 	if err := Password(password); err != nil {
@@ -106,14 +103,26 @@ func (s *Service) Reauthenticate(ctx context.Context, current *Session, peer, pa
 	if !match {
 		return InvalidCredentials
 	}
-	result, err := s.store.pool.Exec(ctx, `UPDATE auth_sessions s SET recent_auth_at=now() FROM users u
-WHERE s.id=$1 AND s.user_id=u.id AND s.revoked_at IS NULL AND s.expires_at>now()
-AND u.security_version=s.user_version AND u.password_hash=$2 AND u.email_verified AND NOT u.totp_enabled`, current.ID, a.Hash)
+	tx, err := s.store.pool.Begin(ctx)
 	if err != nil {
 		return safe(err)
 	}
-	if result.RowsAffected() != 1 {
+	defer tx.Rollback(ctx)
+	locked, err := s.factorAccount(ctx, tx, current, false, false)
+	if err != nil {
+		return err
+	}
+	if locked.Hash != a.Hash {
 		return Conflict
 	}
-	return nil
+	if locked.TOTPEnabled {
+		if err = s.consumeTOTP(ctx, tx, a.ID, code, false); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(ctx, "UPDATE auth_sessions SET recent_auth_at=now() WHERE id=$1", current.ID)
+	if err != nil {
+		return safe(err)
+	}
+	return safe(tx.Commit(ctx))
 }

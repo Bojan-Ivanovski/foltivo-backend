@@ -83,8 +83,8 @@ func TestIntegrationBrowserContract(t *testing.T) {
 	if w.Code != 200 || b.state != "verification_required" || b.cookie.Value == anonymousToken {
 		t.Fatal("partial login failed", w.Body.String())
 	}
-	if strings.Contains(w.Body.String(), `"totp":true`) || strings.Contains(w.Body.String(), `"passkey":true`) {
-		t.Fatal("unsupported methods advertised")
+	if !strings.Contains(w.Body.String(), `"totp":true`) || !strings.Contains(w.Body.String(), `"passkey":true`) {
+		t.Fatal("supported authentication methods missing")
 	}
 	if w := b.request("GET", "/api/v1/me", ""); w.Code != 403 {
 		t.Fatal("unverified account protected access")

@@ -60,7 +60,7 @@ type Methods struct {
 }
 
 func (s *Session) derive() {
-	s.Methods = Methods{Password: true}
+	s.Methods = Methods{Password: true, TOTP: true, Passkey: true}
 	s.State = "anonymous"
 	if s.User != nil {
 		s.State = "authenticated"

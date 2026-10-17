@@ -51,6 +51,9 @@ func run() error {
 		return err
 	}
 	service.ConfigureEmail(email)
+	if err = service.ConfigurePasskeys(authConfig.Origin); err != nil {
+		return errors.New("invalid WebAuthn relying-party configuration")
+	}
 	workerCtx, workerCancel := context.WithCancel(ctx)
 	workerDone := make(chan struct{})
 	go func() { defer close(workerDone); service.EmailLoop(workerCtx) }()

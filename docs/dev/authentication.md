@@ -19,8 +19,7 @@ Registration creates an unverified account without signing it in and queues a
 verification email. Password login returns verification_required until the link
 is consumed; protected endpoints remain unavailable. Verification revokes pending
 sessions and requires a fresh login. Reset links revoke all
-sessions but preserve enrolled factors. TOTP/passkey flags remain false until
-that slice is integrated. There is no public verification bypass or token-debug
+sessions but preserve enrolled factors. TOTP/recovery and user-verified passkeys are implemented. There is no public verification bypass or token-debug
 endpoint.
 
 ## Verification and recovery delivery
@@ -49,6 +48,37 @@ frontend consumes those tokens from the fragment, not URL query logs.
 The core-only test fixture can still bypass email verification through trusted
 SQL inside isolated tests; that is not an application endpoint. Lifecycle tests
 must separately verify real mail transport and token consumption.
+
+## Authentication factors
+
+TOTP uses [pquerna/otp](https://github.com/pquerna/otp) with six digits, a
+30-second period and a one-step clock tolerance. Pending enrollment expires in
+10 minutes and cannot affect policy until a code is confirmed. Encrypted secrets
+are bound to the account through AES-GCM associated data. An accepted time step
+is consumed under the user row lock across every session; use a fresh code for
+each sensitive action. Keep server time synchronized. Ten 128-bit random recovery
+codes are shown once and stored only as hashes. Recovery consumes one code and
+revokes all prior sessions; it never disables TOTP automatically.
+
+Passkeys use [go-webauthn/webauthn v0.18.2](https://pkg.go.dev/github.com/go-webauthn/webauthn@v0.18.2/webauthn).
+The RP ID is the hostname of APP_ORIGIN. For local passkey use set
+`APP_ORIGIN=http://localhost:5173` and browse that hostname; numeric IP addresses
+cannot be WebAuthn RP IDs. The API can still listen on 127.0.0.1. Production must
+use its stable HTTPS hostname: changing it changes the passkey trust boundary.
+User verification is required for enrollment and sign-in. Full library challenge
+state is persisted for five minutes, bound to the browser session, ceremony,
+account and security version. A finish attempt consumes the ceremony even when
+invalid. Origin, RP, signature and UV validation are delegated to the library;
+cloned-authenticator warnings are rejected. Full credential records are encrypted
+with account and credential ID as associated data, and updated after successful
+assertions. Each account supports up to ten named credentials. A verified passkey
+can satisfy MFA, but cannot bypass email verification. Every account retains its
+password credential; deleting a passkey cannot remove its last primary method.
+
+Factor changes require current trusted assurance, revoke other sessions and
+ceremonies, and retain the verified current browser with an updated security
+version. No lost-all-factors email-only recovery exists. User/Organization Library
+resource permissions are separate from this authentication assurance.
 
 ## Browser transport and deployment
 
@@ -94,5 +124,4 @@ known event names; no passwords, cookie tokens, email links or driver details.
 Run the commands in [verification](verification.md),
 including TEST_DATABASE_URL against a dedicated database. Core integration tests
 use isolated schemas and trusted test-only SQL to verify partial-state boundaries;
-that fixture is not an application email-verification implementation. Later
-email/browser tests must exercise real transport and single-use token workflows.
+that fixture is not an application email-verification implementation. Live email/browser tests exercise real transport and single-use token workflows.

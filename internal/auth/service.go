@@ -1,11 +1,16 @@
 package auth
 
-import "context"
+import (
+	"context"
+	wa "github.com/go-webauthn/webauthn/webauthn"
+)
 
 type Service struct {
 	store     *Store
 	passwords *Passwords
 	email     *EmailDelivery
+	webAuthn  *wa.WebAuthn
+	webOrigin string
 }
 
 func NewService(store *Store, passwords *Passwords) *Service {

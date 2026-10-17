@@ -250,13 +250,13 @@ func (s *Service) ChangePassword(ctx context.Context, current *Session, peer, ol
 	if a == nil || a.Version != current.UserVersion {
 		return Conflict
 	}
-	var valid bool
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM auth_sessions WHERE id=$1 AND revoked_at IS NULL AND expires_at>now() AND recent_auth_at>now()-interval '5 minutes')`, current.ID).Scan(&valid)
+	var activeID string
+	err = tx.QueryRow(ctx, `SELECT id::text FROM auth_sessions WHERE id=$1 AND revoked_at IS NULL AND expires_at>now() AND recent_auth_at>now()-interval '5 minutes' FOR UPDATE`, current.ID).Scan(&activeID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Conflict
+	}
 	if err != nil {
 		return safe(err)
-	}
-	if !valid {
-		return Conflict
 	}
 	_, err = tx.Exec(ctx, "UPDATE users SET password_hash=$2,security_version=security_version+1,updated_at=now() WHERE id=$1", a.ID, hash)
 	if err != nil {

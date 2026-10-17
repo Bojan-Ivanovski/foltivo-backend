@@ -53,12 +53,12 @@ SQL, credentials, token links or factor secrets. All auth responses are no-store
 | POST /auth/logout | `{}` | 200 new anonymous session shape; old session revoked |
 | GET /me | None | 200 `{user}` only for fully authenticated verified sessions; otherwise401/403 |
 | POST /auth/verification/resend | `{email}` | 202 generic `{message}` |
-| POST /auth/verification/confirm | `{token}` | 200 `{message}`; single-use verification, then client refetches session |
+| POST /auth/verification/confirm | `{token}` | 200 `{message}`; single-use verification, pending sessions revoked; sign in again |
 | POST /auth/password/forgot | `{email}` | 202 generic `{message}` |
 | POST /auth/password/reset | `{token,password}` | 200 `{message}`; single-use token, all user sessions revoked, enrolled MFA preserved |
 | POST /auth/reauthenticate | `{password,code?}` | 200 `{message}`; recent server-verified assurance, code required if TOTP enrolled |
 | PATCH /auth/profile | `{name}` | 200 `{user}`; authenticated account only |
-| POST /auth/password/change | `{currentPassword,password,code?}` | 200 `{message}`; recent assurance, rotate/revoke sessions safely |
+| POST /auth/password/change | `{currentPassword,password,code?}` | 200 `{message}`; password and required factor verified; all sessions revoked, sign in again |
 | GET /auth/sessions | None | 200 `{sessions:[{id,current,createdAt,expiresAt}]}` |
 | DELETE /auth/sessions/{id} | None | 200 `{message}`; owned sessions only, revoke current allowed with resulting sign-out |
 
