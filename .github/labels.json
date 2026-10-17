@@ -1,0 +1,67 @@
+[
+  {
+    "color": "0052cc",
+    "description": "Something existing behaves incorrectly or fails.",
+    "name": "Type: Bug"
+  },
+  {
+    "color": "0052cc",
+    "description": "Documentation-only work.",
+    "name": "Type: Documentation"
+  },
+  {
+    "color": "0052cc",
+    "description": "An improvement to existing functionality.",
+    "name": "Type: Enhancement"
+  },
+  {
+    "color": "0052cc",
+    "description": "A request for new user-visible functionality.",
+    "name": "Type: Feature"
+  },
+  {
+    "color": "0052cc",
+    "description": "Refactoring, dependencies, CI, tooling, or cleanup.",
+    "name": "Type: Maintenance"
+  },
+  {
+    "color": "0052cc",
+    "description": "Work that does not fit another issue type.",
+    "name": "Type: Other"
+  },
+  {
+    "color": "0052cc",
+    "description": "A request for help or clarification.",
+    "name": "Type: Question"
+  },
+  {
+    "color": "fbca04",
+    "description": "User-facing guides, tutorials, and usage documentation.",
+    "name": "Component: User Documentation"
+  },
+  {
+    "color": "0052cc",
+    "description": "A large body of work that should be decomposed into multiple related issues.",
+    "name": "Type: Epic"
+  },
+  {
+    "color": "fbca04",
+    "description": "Developer-facing documentation, reference material, and contribution guides.",
+    "name": "Component: Dev Documentation"
+  },
+  {
+    "color": "fbca04",
+    "description": "Application or library source code and implementation behavior.",
+    "name": "Component: Source Code"
+  },
+  {
+    "color": "fbca04",
+    "description": "Unit tests and their supporting test utilities.",
+    "name": "Component: Unit Tests"
+  },
+  {
+    "color": "fbca04",
+    "description": "Build configuration, packaging, dependencies, and release tooling.",
+    "name": "Component: Build"
+  }
+]
