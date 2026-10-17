@@ -23,11 +23,16 @@ The standard-library HTTP server in cmd/api uses net/http and ServeMux.
 HTTP_ADDR overrides :8080. DATABASE_URL is required. SIGINT/SIGTERM shut down
 gracefully. A database outage leaves liveness available and readiness unavailable.
 
-## Pending decisions
+## Selected authentication
 
-- Backend #3 selects application-owned Go authentication with PostgreSQL-backed
-  opaque cookie sessions and Argon2id. #4 implements the core; email and factor
-  slices #5/#6 remain in progress. See [authentication](authentication.md).
+Backend #3 selects application-owned Go authentication with PostgreSQL-backed
+opaque cookie sessions and Argon2id. Email uses a durable encrypted outbox and
+TLS-aware SMTP. TOTP uses pquerna/otp; verified passkeys use go-webauthn/webauthn.
+See [authentication](authentication.md), the [API contract](../api/authentication.md)
+and [verification](verification.md).
+
+## Pending product decisions
+
 - The initial server uses net/http and its ServeMux. Additional framework,
   query-layer, job, storage, live collaboration and hosting choices remain open.
 

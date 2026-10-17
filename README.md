@@ -4,9 +4,10 @@ Go backend for **Foltivo**, a Markdown-first workspace for connected knowledge,
 writing and collaboration. The selected product domain is **foltivo.com**.
 
 This repository contains a Go REST API, local PostgreSQL infrastructure and an
-embedded Goose schema migration command and an Go account/session layer with queued verification/recovery email.
+embedded Goose schema migration command, and a Go authentication layer with
+queued verification/recovery email, TOTP/recovery codes and verified passkeys.
 See [authentication](docs/dev/authentication.md) for delivery status and security
-boundaries; factor lifecycle integration is still in progress.
+boundaries and [verification](docs/dev/verification.md) for repeatable checks.
 
 ## Development
 
@@ -53,8 +54,8 @@ HTTP_ADDR=127.0.0.1:8081 go run ./cmd/api
 or SIGTERM gracefully stops the API. Run `go test ./...` for unit tests; the
 database guide explains opt-in PostgreSQL integration verification.
 
-The application boundary is a Go REST API. Authentication, authorization and live
-collaboration designs require their own analysis and selection.
+The application boundary is a Go REST API. Authentication is application-owned;
+resource authorization and live collaboration remain separate product deliveries.
 
 ## Product and work tracking
 
