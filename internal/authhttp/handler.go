@@ -3,6 +3,7 @@ package authhttp
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -41,7 +42,11 @@ func (h *Handler) Routes() http.Handler {
 			fail(w, err)
 			return
 		}
-		h.cookie(w, session)
+		// Do not let a late read response overwrite a cookie rotated by a
+		// concurrent login/logout in another tab. Only bootstrap writes it.
+		if session.Token != h.token(r) {
+			h.cookie(w, session)
+		}
 		write(w, 200, session)
 	})
 	mux.HandleFunc("POST /api/v1/auth/register", h.wrap(h.register, true))
@@ -52,6 +57,11 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/auth/sessions", h.wrap(h.sessions, false))
 	mux.HandleFunc("DELETE /api/v1/auth/sessions/{id}", h.wrap(h.revoke, true))
 	mux.HandleFunc("POST /api/v1/auth/reauthenticate", h.wrap(h.reauthenticate, true))
+	mux.HandleFunc("POST /api/v1/auth/verification/resend", h.wrap(h.requestEmail("verification"), true))
+	mux.HandleFunc("POST /api/v1/auth/verification/confirm", h.wrap(h.consumeEmail("verification"), true))
+	mux.HandleFunc("POST /api/v1/auth/password/forgot", h.wrap(h.requestEmail("reset"), true))
+	mux.HandleFunc("POST /api/v1/auth/password/reset", h.wrap(h.consumeEmail("reset"), true))
+	mux.HandleFunc("POST /api/v1/auth/password/change", h.wrap(h.changePassword, true))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -61,6 +71,9 @@ func (h *Handler) Routes() http.Handler {
 
 func (h *Handler) wrap(fn endpoint, mutation bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		bounded, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+		defer cancel()
+		r = r.WithContext(bounded)
 		if mutation && r.Header.Get("Origin") != h.origin {
 			fail(w, &auth.Error{Status: 403, Code: "origin_rejected", Message: "Request origin is not trusted."})
 			return

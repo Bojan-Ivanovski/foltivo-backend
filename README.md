@@ -4,9 +4,9 @@ Go backend for **Foltivo**, a Markdown-first workspace for connected knowledge,
 writing and collaboration. The selected product domain is **foltivo.com**.
 
 This repository contains a Go REST API, local PostgreSQL infrastructure and an
-embedded Goose schema migration command and an initial Go account/session layer.
+embedded Goose schema migration command and an Go account/session layer with queued verification/recovery email.
 See [authentication](docs/dev/authentication.md) for delivery status and security
-boundaries; email and factor lifecycle integration is still in progress.
+boundaries; factor lifecycle integration is still in progress.
 
 ## Development
 
@@ -19,7 +19,8 @@ Set up local PostgreSQL and start the API:
 
 ```sh
 cp .env.example .env
-# Edit .env: replace the local password in POSTGRES_PASSWORD and DATABASE_URL.
+# Edit .env: choose a local database password and set AUTH_ENCRYPTION_KEY
+# to a persistent base64-encoded 32-byte random key (openssl rand -base64 32).
 docker compose up -d --wait
 set -a
 . ./.env
@@ -27,6 +28,11 @@ set +a
 go run ./cmd/migrate up
 go run ./cmd/api
 ```
+
+Open the frontend through its Vite development server with APP_ORIGIN matching
+that origin. Local verification/reset email is captured at http://localhost:8025.
+Mail requests are durably queued; SMTP failures retry rather than losing links.
+Keep the encryption key stable across restarts and separate from database backups.
 
 `GET http://localhost:8080/health` returns HTTP 200 with JSON:
 

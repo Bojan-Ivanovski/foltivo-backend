@@ -45,7 +45,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	authHandler := authhttp.New(auth.NewService(auth.NewStore(db), passwords), authConfig.Origin, authConfig.SecureCookies)
+	service := auth.NewService(auth.NewStore(db), passwords)
+	email, err := config.LoadEmail(c, authConfig)
+	if err != nil {
+		return err
+	}
+	service.ConfigureEmail(email)
+	workerCtx, workerCancel := context.WithCancel(ctx)
+	workerDone := make(chan struct{})
+	go func() { defer close(workerDone); service.EmailLoop(workerCtx) }()
+	defer func() { workerCancel(); <-workerDone }()
+	authHandler := authhttp.New(service, authConfig.Origin, authConfig.SecureCookies)
 	server := &http.Server{
 		Addr:              c.HTTPAddr,
 		Handler:           api.Handler(db, authHandler.Routes()),

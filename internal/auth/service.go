@@ -5,6 +5,7 @@ import "context"
 type Service struct {
 	store     *Store
 	passwords *Passwords
+	email     *EmailDelivery
 }
 
 func NewService(store *Store, passwords *Passwords) *Service {
@@ -44,7 +45,13 @@ func (s *Service) Register(ctx context.Context, peer, name, email, password stri
 	if err != nil {
 		return err
 	}
-	return s.store.register(ctx, name, email, hash)
+	if err := s.store.register(ctx, name, email, hash); err != nil {
+		return err
+	}
+	if s.email != nil {
+		return s.RequestEmail(ctx, peer, email, "verification")
+	}
+	return nil
 }
 
 func (s *Service) Login(ctx context.Context, current *Session, peer, email, password string) (*Session, error) {

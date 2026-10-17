@@ -13,7 +13,8 @@ root, copy the placeholder configuration and choose a local password:
 
 ```sh
 cp .env.example .env
-# Edit .env: change POSTGRES_PASSWORD and the password in DATABASE_URL together.
+# Edit .env: change both database password entries and generate a persistent
+# AUTH_ENCRYPTION_KEY (base64-encoded 32 random bytes) for encrypted mail/factors.
 docker compose up -d --wait
 set -a
 . ./.env

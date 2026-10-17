@@ -58,6 +58,9 @@ func TestIntegrationBrowserContract(t *testing.T) {
 	if w := b.request("GET", "/api/v1/auth/session", ""); w.Code != 200 || b.state != "anonymous" || b.csrf == "" {
 		t.Fatal("bootstrap failed", w.Body.String())
 	}
+	if w := b.request("GET", "/api/v1/auth/session", ""); len(w.Result().Cookies()) != 0 {
+		t.Fatal("session refresh rewrote existing cookie")
+	}
 	anonymousToken := b.cookie.Value
 	csrf := b.csrf
 	b.csrf = "wrong"
