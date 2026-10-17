@@ -56,7 +56,7 @@ SQL, credentials, token links or factor secrets. All auth responses are no-store
 | POST /auth/verification/confirm | `{token}` | 200 `{message}`; single-use verification, pending sessions revoked; sign in again |
 | POST /auth/password/forgot | `{email}` | 202 generic `{message}` |
 | POST /auth/password/reset | `{token,password}` | 200 `{message}`; single-use token, all user sessions revoked, enrolled MFA preserved |
-| POST /auth/reauthenticate | `{password,code?}` | 200 `{message}`; recent server-verified assurance, code required if TOTP enrolled |
+| POST /auth/reauthenticate | `{password,code?}` | 200 `{message}`; recent server-verified assurance, fresh authenticator or saved recovery code required if TOTP enrolled |
 | PATCH /auth/profile | `{name}` | 200 `{user}`; authenticated account only |
 | POST /auth/password/change | `{currentPassword,password,code?}` | 200 `{message}`; password and required factor verified; all sessions revoked, sign in again |
 | GET /auth/sessions | None | 200 `{sessions:[{id,current,createdAt,expiresAt}]}` |
@@ -81,7 +81,7 @@ No public token-debug endpoint. Production requires explicit secure SMTP setting
 | POST /auth/totp/enroll | `{}` | 200 `{secret,uri}`; recent authentication required, pending secret expires and is not yet enabled |
 | POST /auth/totp/confirm | `{code}` | 200 `{recoveryCodes:[…]}`; verified activation and one-time plaintext code display |
 | POST /auth/mfa/challenge | `{code}` or `{recoveryCode}` | 200 session shape; atomically consume code and rotate the pending session |
-| POST /auth/totp/remove | `{password,code}` | 200 `{message}`; verified recent assurance, session revocation/rotation |
+| POST /auth/totp/remove | `{password,code}` | 200 `{message}`; password plus fresh authenticator or unused recovery code; revoke other sessions |
 | POST /auth/recovery-codes/regenerate | `{password,code}` | 200 `{recoveryCodes:[…]}`; old codes invalidated |
 | GET /auth/security | None | 200 `{totpEnabled,recoveryCodesRemaining,passkeys:[{id,name,createdAt}]}` |
 

@@ -303,7 +303,7 @@ func (s *Service) ModifyTOTP(ctx context.Context, current *Session, peer, passwo
 	if a.Hash != locked.Hash || !locked.TOTPEnabled {
 		return nil, Conflict
 	}
-	if err = s.consumeTOTP(ctx, tx, a.ID, code, false); err != nil {
+	if err = s.consumeSecurityProof(ctx, tx, a.ID, code); err != nil {
 		return nil, err
 	}
 	var codes []string
@@ -327,4 +327,24 @@ func (s *Service) ModifyTOTP(ctx context.Context, current *Session, peer, passwo
 		return nil, err
 	}
 	return codes, safe(tx.Commit(ctx))
+}
+
+// A saved recovery code can replace a lost authenticator for account security
+// management, but only alongside the separately verified account password.
+func (s *Service) consumeSecurityProof(ctx context.Context, tx pgx.Tx, id, code string) error {
+	if len(code) == 6 {
+		return s.consumeTOTP(ctx, tx, id, code, false)
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(code)
+	if err != nil || len(decoded) != 16 || base64.RawURLEncoding.EncodeToString(decoded) != code {
+		return invalidFactor
+	}
+	result, err := tx.Exec(ctx, "UPDATE auth_recovery_codes SET consumed_at=now() WHERE user_id=$1 AND code_hash=$2 AND consumed_at IS NULL", id, tokenHash(code))
+	if err != nil {
+		return safe(err)
+	}
+	if result.RowsAffected() != 1 {
+		return invalidFactor
+	}
+	return nil
 }

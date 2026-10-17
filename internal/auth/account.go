@@ -116,9 +116,17 @@ func (s *Service) Reauthenticate(ctx context.Context, current *Session, peer, pa
 		return Conflict
 	}
 	if locked.TOTPEnabled {
-		if err = s.consumeTOTP(ctx, tx, a.ID, code, false); err != nil {
+		if err = s.consumeSecurityProof(ctx, tx, a.ID, code); err != nil {
 			return err
 		}
+	}
+	if locked.TOTPEnabled && len(code) != 6 {
+		if err = factorChange(ctx, tx, locked, current); err != nil {
+			return err
+		}
+		// Keep callers such as ChangePassword aligned with this same request's
+		// newly verified source version after recovery revoked other sessions.
+		current.UserVersion = locked.Version + 1
 	}
 	_, err = tx.Exec(ctx, "UPDATE auth_sessions SET recent_auth_at=now() WHERE id=$1", current.ID)
 	if err != nil {

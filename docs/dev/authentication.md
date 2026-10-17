@@ -58,7 +58,12 @@ are bound to the account through AES-GCM associated data. An accepted time step
 is consumed under the user row lock across every session; use a fresh code for
 each sensitive action. Keep server time synchronized. Ten 128-bit random recovery
 codes are shown once and stored only as hashes. Recovery consumes one code and
-revokes all prior sessions; it never disables TOTP automatically.
+revokes all prior sessions; it never disables TOTP automatically. To replace a
+lost authenticator after recovery, the user must supply their password and
+another unused saved code for security management. This explicit action can
+remove/replace the factor or regenerate backups. Recovery-code reauthentication
+also revokes other sessions. Losing every factor and backup never permits an
+email-only bypass.
 
 Passkeys use [go-webauthn/webauthn v0.18.2](https://pkg.go.dev/github.com/go-webauthn/webauthn@v0.18.2/webauthn).
 The RP ID is the hostname of APP_ORIGIN. For local passkey use set

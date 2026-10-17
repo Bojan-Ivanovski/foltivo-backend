@@ -221,3 +221,62 @@ func TestIntegrationTOTPExpiryAndRemoval(t *testing.T) {
 		t.Fatal("removed factor still required")
 	}
 }
+
+func TestIntegrationLostAuthenticatorRecoveryManagement(t *testing.T) {
+	pool := testutil.Database(t)
+	ctx := context.Background()
+	s := NewService(NewStore(pool), fastPasswords(t))
+	if err := s.Register(ctx, "peer", "Recovery Person", "lost@example.com", testPassword); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = pool.Exec(ctx, "UPDATE users SET email_verified=true")
+	secrets, _ := NewSecrets(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	s.ConfigureEmail(&EmailDelivery{Secrets: secrets})
+	current := mustLogin(t, s, "lost@example.com")
+	enrollment, err := s.EnrollTOTP(ctx, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codes, err := s.ConfirmTOTP(ctx, current, "peer", factorCode(t, enrollment.Secret, time.Now().Unix()/30))
+	if err != nil {
+		t.Fatal(err)
+	}
+	current = mustSession(t, s, current.Token)
+	other := mustLogin(t, s, "lost@example.com")
+	if err = s.Reauthenticate(ctx, current, "peer", testPassword, codes[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Session(ctx, other.Token, "peer", false); err == nil {
+		t.Fatal("recovery reauthentication left another session active")
+	}
+	current = mustSession(t, s, current.Token)
+	if err = s.Reauthenticate(ctx, current, "peer", testPassword, codes[0]); err == nil {
+		t.Fatal("recovery reauthentication accepted replay")
+	}
+	newPassword := "a recovered replacement password"
+	if err = s.ChangePassword(ctx, current, "peer", testPassword, newPassword, codes[1]); err != nil {
+		t.Fatal("recovery proof failed password change", err)
+	}
+	if _, err = s.Session(ctx, current.Token, "peer", false); err == nil {
+		t.Fatal("password change retained current session")
+	}
+	pending, err := s.Login(ctx, mustSession(t, s, ""), "peer", "lost@example.com", newPassword)
+	if err != nil || pending.State != "mfa_required" {
+		t.Fatal("password change bypassed factor")
+	}
+	current, err = s.Challenge(ctx, pending, "peer", "", codes[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.ModifyTOTP(ctx, current, "peer", "wrong password value", codes[3], true); err == nil {
+		t.Fatal("recovery management bypassed password")
+	}
+	if _, err = s.ModifyTOTP(ctx, current, "peer", newPassword, codes[3], true); err != nil {
+		t.Fatal(err)
+	}
+	current = mustSession(t, s, current.Token)
+	security, err := s.Security(ctx, current)
+	if err != nil || security.TOTPEnabled || security.RecoveryCodesRemaining != 0 {
+		t.Fatal("lost factor recovery left enabled factor or backup codes")
+	}
+}
