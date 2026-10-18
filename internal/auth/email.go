@@ -44,7 +44,7 @@ func (s *Service) RequestEmail(ctx context.Context, peer, email, purpose string)
 	if err != nil {
 		return err
 	}
-	if a == nil || (purpose == "verification" && a.EmailVerified) {
+	if a == nil || a.ClosureAt != nil || (purpose == "verification" && a.EmailVerified) {
 		return nil
 	}
 	token, err := NewToken()
@@ -73,9 +73,14 @@ func (s *Service) RequestEmail(ctx context.Context, peer, email, purpose string)
 	}
 	defer tx.Rollback(ctx)
 	// Consistent account-first locking also serializes resets and factor changes.
-	if _, err = tx.Exec(ctx, "SELECT id FROM users WHERE id=$1 FOR UPDATE", a.ID); err != nil {
-		return safe(err)
+	locked, err := readAccount(tx.QueryRow(ctx, `SELECT `+accountColumns+` FROM users u JOIN libraries l ON l.user_owner_id=u.id WHERE u.id=$1 FOR UPDATE OF u`, a.ID))
+	if err != nil {
+		return err
 	}
+	if locked == nil || locked.Email != email || locked.ClosureAt != nil || (purpose == "verification" && locked.EmailVerified) {
+		return nil
+	}
+	a = locked
 	if _, err = tx.Exec(ctx, "UPDATE auth_email_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose=$2 AND consumed_at IS NULL", a.ID, purpose); err != nil {
 		return safe(err)
 	}
@@ -195,8 +200,12 @@ func (s *Service) ConsumeEmail(ctx context.Context, token, purpose, password str
 	if err != nil {
 		return safe(err)
 	}
-	if _, err = tx.Exec(ctx, "SELECT id FROM users WHERE id=$1 FOR UPDATE", userID); err != nil {
+	var closing bool
+	if err = tx.QueryRow(ctx, "SELECT closure_requested_at IS NOT NULL FROM users WHERE id=$1 FOR UPDATE", userID).Scan(&closing); err != nil {
 		return safe(err)
+	}
+	if closing {
+		return Validation("This link is invalid or has expired.")
 	}
 	result, err := tx.Exec(ctx, `UPDATE auth_email_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose=$2 AND consumed_at IS NULL AND expires_at>now()`, tokenHash(token), purpose)
 	if err != nil {
@@ -216,7 +225,7 @@ func (s *Service) ConsumeEmail(ctx context.Context, token, purpose, password str
 			_, err = tx.Exec(ctx, "UPDATE auth_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL", userID)
 		}
 		if err == nil {
-			_, err = tx.Exec(ctx, "UPDATE auth_email_tokens SET consumed_at=now() WHERE user_id=$1 AND consumed_at IS NULL", userID)
+			_, err = tx.Exec(ctx, "UPDATE auth_email_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose<>'security_notice' AND consumed_at IS NULL", userID)
 		}
 	} else {
 		return Validation("Invalid email operation.")
@@ -266,7 +275,7 @@ func (s *Service) ChangePassword(ctx context.Context, current *Session, peer, ol
 	if err != nil {
 		return safe(err)
 	}
-	_, err = tx.Exec(ctx, "UPDATE auth_email_tokens SET consumed_at=now() WHERE user_id=$1 AND consumed_at IS NULL", a.ID)
+	_, err = tx.Exec(ctx, "UPDATE auth_email_tokens SET consumed_at=now() WHERE user_id=$1 AND purpose<>'security_notice' AND consumed_at IS NULL", a.ID)
 	if err != nil {
 		return safe(err)
 	}

@@ -3,8 +3,9 @@
 Backend #3 selects an in-application Go design. The REST contract is in
 [authentication API](../api/authentication.md). PostgreSQL owns users, password
 hashes, personal Library ownership, hashed opaque sessions and throttle counters.
-No Node authentication service, JWT requirement or external identity provider is
-introduced. The frontend consumes the same contract from an isolated branch
+No Node authentication service or application JWT requirement is introduced.
+Optional GitHub/Google identities extend existing Go-owned accounts without
+outsourcing their session or authorization policy. The frontend consumes the same contract from an isolated branch
 based on its merged Foltivo rebrand.
 
 ## Delivery slices
@@ -141,3 +142,98 @@ Run the commands in [verification](verification.md),
 including TEST_DATABASE_URL against a dedicated database. Core integration tests
 use isolated schemas and trusted test-only SQL to verify partial-state boundaries;
 that fixture is not an application email-verification implementation. Live email/browser tests exercise real transport and single-use token workflows.
+
+## Account management completion
+
+Backend #9–#12 extend the foundation with verified email changes, session controls,
+optional GitHub/Google linked identities and recoverable account closure. Apply
+migrations through `cmd/migrate` before starting this version of the API; startup
+never applies migrations automatically.
+
+Email changes retain the old verified sign-in address until a 30-minute,
+account-bound link is confirmed by that fully authenticated account. Requesting
+requires five-minute recent assurance; confirmation revokes every session and
+pending authentication flow. A separate encrypted durable notification is sent to
+the old address. Security notices contain no bearer token and survive subsequent
+password/reset token invalidation. An occupied target address gets the same
+request response without disclosing another account or reserving its address.
+A pending request can be inspected or canceled. Links open
+`/confirm-email-change#token=…`; frontend removes the fragment and retains the
+secret only in page memory. Sign in using the old address before confirmation.
+
+Session listings expose nullable display-only `userAgent` and `lastSeenAt`.
+Previously existing sessions can have unknown metadata. User agents are stripped
+of invalid UTF-8/control characters and limited to 512 bytes; they are untrusted
+labels, not verified device identities. Activity updates occur at most once per
+five minutes. No IP address or inferred location is retained. Signing out other
+sessions preserves the current session and removes their pending passkey/OAuth
+flows; ordinary individual revocation remains supported.
+
+### Optional GitHub and Google identities
+
+Configure the three `OAUTH_GITHUB_*` or `OAUTH_GOOGLE_*` values in `.env.example` as
+an all-or-none group. Empty groups disable that provider. Register each exact
+browser-visible `/api/v1/auth/providers/{provider}/callback` with its provider;
+locally this is the frontend proxy origin, not its internal API target. Production
+uses HTTPS. Configuration validation does not provision provider credentials,
+callbacks, consent-screen approval or reverse-proxy routing. Store real client
+secrets only in deployment secrets or ignored local configuration.
+
+Providers link explicitly to an existing verified Foltivo account after recent
+authentication. They never auto-create an account or merge identities based on
+matching email. Every Foltivo account retains its password, so unlinking a provider
+cannot remove the last primary credential. Google identity tokens are verified
+for issuer, audience, expiry and nonce; GitHub identities use the authenticated
+stable provider subject. Provider tokens are used for verification and discarded;
+repository access/synchronization is a separate feature and grant.
+
+Provider state is single-use, expiring and browser-session bound; PKCE data is
+stored encrypted. OAuth login still obeys Foltivo email/MFA policy. The provider
+callback issues a short-lived fragment grant instead of writing a new session
+cookie. The frontend completes that grant through its usual session mutation
+coordinator with current Origin/CSRF checks. This prevents a delayed callback from
+overwriting another tab's newer account/session transition. Pending closure,
+revocation and security-version changes invalidate outstanding flows.
+
+### Thirty-day account closure
+
+Closure requires fully authenticated five-minute recent assurance and configured
+durable email delivery. It records a database deadline 30 days from the request,
+revokes every session, invalidates pending tokens/flows, and immediately denies
+ordinary password/passkey/provider login. A recovery link is queued atomically;
+the user may request another while the window remains open. Links expire after
+30 minutes and do not extend the closure deadline.
+
+Recovery requires the email link **and** the existing password **and**, when TOTP
+is enrolled, a fresh authenticator code or unused saved recovery code. It preserves
+passkeys and enrolled MFA and requires a fresh normal sign-in afterward. There is
+no email-only restoration or automatic restoration through ordinary sign-in.
+Verified passkey-based closure recovery is not implemented: users who lost their
+password or all TOTP/recovery proofs cannot bypass those requirements using this
+flow. Keep recovery material before scheduling closure.
+
+The API runs a bounded cleanup worker every minute; multiple processes safely
+coordinate using locked account rows. Cleanup and restoration lock the same
+account, so only one can commit. After the deadline restoration is unavailable,
+even if background cleanup has not run yet. Restoring increments the security
+version and consumes outstanding recovery links. Cleanup retries database failures
+without exposing identities or credentials in operational logs.
+
+**Current data disposition:** the schema contains the user, its personal Library
+stub, authentication sessions/factors, linked provider identities, pending flows
+and mail records. Expired closure permanently removes these records, including
+encrypted outbox payloads. It does not implement disposition of documents, shared
+contributions, organization membership or organizations: those resource tables do
+not yet exist. Deletion does not promise removal from retained database backups;
+backup retention is an independent deployment policy.
+
+`account_closure_blockers` is the required integration boundary for ownership and
+retention restrictions. Closure scheduling and final cleanup both refuse active
+blockers; cleanup checks again after acquiring the account lock. Future
+organization ownership/content writers must lock the user row before creating or
+removing a blocker in the same transaction, including the last-owner rule. Before
+those product capabilities are enabled, define their ownership-transfer, content
+retention/disposition and cleanup constraints and wire real blockers. Do not infer
+that an empty blocker registry implements organizations that are not in the
+schema. Unknown non-cascading foreign keys fail cleanup closed rather than
+silently deleting unsupported resources.
