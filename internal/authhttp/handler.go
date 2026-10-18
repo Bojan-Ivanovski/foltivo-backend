@@ -38,9 +38,15 @@ type endpoint func(http.ResponseWriter, *http.Request, *auth.Session) error
 
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	h.registerAccountManagementRoutes(mux)
+	h.registerOAuthRoutes(mux)
 	mux.HandleFunc("GET /api/v1/auth/session", func(w http.ResponseWriter, r *http.Request) {
 		session, err := h.service.Session(r.Context(), h.token(r), h.peer(r), true)
 		if err != nil {
+			fail(w, err)
+			return
+		}
+		if err := h.service.ObserveSession(r.Context(), session, r.UserAgent()); err != nil {
 			fail(w, err)
 			return
 		}
@@ -98,6 +104,10 @@ func (h *Handler) wrap(fn endpoint, mutation bool) http.HandlerFunc {
 		}
 		if mutation && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-CSRF-Token")), []byte(session.CSRFToken)) != 1 {
 			fail(w, &auth.Error{Status: 403, Code: "csrf_rejected", Message: "Reload this page and try again."})
+			return
+		}
+		if err := h.service.ObserveSession(r.Context(), session, r.UserAgent()); err != nil {
+			fail(w, err)
 			return
 		}
 		if err := fn(w, r, session); err != nil {

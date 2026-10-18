@@ -129,3 +129,56 @@ separate product deliveries; do not show nonfunctional controls or claim those
 features are implemented. Existing sample discovery is explicitly isolated from
 live auth: real account identity must never be fed into fixture access lists, and
 API failures must never silently select a preview account.
+
+## Account management completion (#9–#12)
+
+All routes use the `/api/v1` prefix and the existing Origin/CSRF/session wrapper.
+Sensitive actions below require recent authentication from
+`POST /auth/reauthenticate`; the server checks it again under the account lock.
+DELETE operations have no request body, matching existing client behavior.
+
+| Method and path | Request | Response and assurance |
+| --- | --- | --- |
+| GET /auth/email-change | None | 200 `{pending:{email,expiresAt}\|null}`; fully authenticated |
+| POST /auth/email-change | `{email}` | 202 generic `{message}`; recent authentication; old address stays active |
+| DELETE /auth/email-change | None | 200 `{message}`; cancel pending change; fully authenticated |
+| POST /auth/email-change/confirm | `{token}` | 200 `{message}`; authenticated same account; all sessions revoked, sign in using new email |
+| DELETE /auth/sessions/others | None | 200 `{revokedCount}`; fully authenticated; current session preserved |
+| GET /auth/providers | None | 200 `{providers:[{provider,configured,linked,linkedAt?}]}`; see provider visibility below |
+| POST /auth/providers/{provider}/link | `{}` | 200 `{url}`; fully authenticated recent assurance |
+| POST /auth/providers/{provider}/login | `{}` | 200 `{url}`; anonymous session; previously linked identity required |
+| GET /auth/providers/{provider}/callback | Provider callback query | Browser-session-bound single-use state; login redirects to `/complete-provider-sign-in#token=…`; no cookie rotation here |
+| POST /auth/providers/complete | `{token}` | 200 session shape; anonymous Origin/CSRF mutation; atomically consumes short-lived grant and rotates cookie; enrolled MFA still applies |
+| DELETE /auth/providers/{provider} | None | 200 `{ok:true}`; fully authenticated recent assurance; password remains available |
+| GET /auth/account-closure | None | 200 `{pending:null,blockers:[{code,message}],recoveryDays:30}`; fully authenticated active account |
+| POST /auth/account-closure | `{}` | 202 `{message,expiresAt}`; recent assurance; deny if blockers; immediately revoke all sessions |
+| POST /auth/account-closure/recovery/request | `{email}` | 202 generic `{message}`; anonymous CSRF-capable session; no account enumeration |
+| POST /auth/account-closure/recovery/confirm | `{token,password,code?}` | 200 `{message}`; anonymous CSRF-capable session; current password plus fresh TOTP/saved recovery code if enrolled; no authenticated session created |
+
+`GET /auth/sessions` retains existing fields and adds nullable `userAgent` and
+`lastSeenAt`. Both are display metadata, not verified device identity. Old sessions
+can remain unknown until subsequently observed. No client IP is exposed/stored by
+this feature.
+
+Email changes use `/confirm-email-change#token=…` and account recovery uses
+`/recover-account#token=…`. Both token types expire after 30 minutes; subsequent
+requests invalidate previous links of that purpose. Tokens are removed from the
+fragment into page memory, never copied into localStorage/sessionStorage. Email
+confirmation requires the same currently authenticated account; reopening the
+email link after signing in is supported. It never switches accounts implicitly.
+
+Closure recovery remains possible only before the original database deadline,
+regardless of delivery retries or requested replacement links. It cannot bypass
+password or enrolled MFA. Ordinary sign-in/reset does not restore a pending
+closure. Losing all required proofs does not create an email-only fallback.
+`closure_blocked` (409) identifies unresolved ownership/retention restrictions.
+The authenticated closure status exposes actionable blocker messages but makes no
+claim that unimplemented organization/content features already have disposition.
+See [operational lifecycle](../dev/authentication.md#thirty-day-account-closure).
+
+Provider listings are available to anonymous CSRF-capable sessions (configuration
+only, `linked:false`) and fully authenticated accounts (their own link status).
+Partial verification/MFA states cannot inspect account links. Provider callbacks
+return a generic failure redirect without credential/provider details. Login
+grants expire after two minutes and are consumed only by the original anonymous
+session. A repeated/delayed grant cannot switch an already authenticated browser.

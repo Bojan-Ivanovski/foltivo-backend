@@ -6,10 +6,12 @@ import (
 )
 
 type SessionSummary struct {
-	ID        string    `json:"id"`
-	Current   bool      `json:"current"`
-	CreatedAt time.Time `json:"createdAt"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	ID         string     `json:"id"`
+	Current    bool       `json:"current"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	UserAgent  *string    `json:"userAgent"`
+	LastSeenAt *time.Time `json:"lastSeenAt"`
 }
 
 func (s *Service) Profile(ctx context.Context, current *Session, name string) (*User, error) {
@@ -37,7 +39,7 @@ func (s *Service) Sessions(ctx context.Context, current *Session) ([]SessionSumm
 	if err := current.RequireAuthenticated(); err != nil {
 		return nil, err
 	}
-	rows, err := s.store.pool.Query(ctx, `SELECT id::text,created_at,expires_at FROM auth_sessions WHERE user_id=$1 AND user_version=$2 AND revoked_at IS NULL AND expires_at>now()
+	rows, err := s.store.pool.Query(ctx, `SELECT id::text,created_at,expires_at,user_agent,last_seen_at FROM auth_sessions WHERE user_id=$1 AND user_version=$2 AND revoked_at IS NULL AND expires_at>now()
 AND EXISTS(SELECT 1 FROM auth_sessions active JOIN users u ON u.id=active.user_id WHERE active.id=$3 AND active.revoked_at IS NULL AND active.expires_at>now() AND active.user_version=u.security_version AND u.email_verified AND (NOT u.totp_enabled OR active.mfa_verified)) ORDER BY created_at DESC`, current.User.ID, current.UserVersion, current.ID)
 	if err != nil {
 		return nil, safe(err)
@@ -46,7 +48,7 @@ AND EXISTS(SELECT 1 FROM auth_sessions active JOIN users u ON u.id=active.user_i
 	result := []SessionSummary{}
 	for rows.Next() {
 		var row SessionSummary
-		if err := rows.Scan(&row.ID, &row.CreatedAt, &row.ExpiresAt); err != nil {
+		if err := rows.Scan(&row.ID, &row.CreatedAt, &row.ExpiresAt, &row.UserAgent, &row.LastSeenAt); err != nil {
 			return nil, safe(err)
 		}
 		row.Current = row.ID == current.ID

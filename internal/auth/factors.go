@@ -27,7 +27,7 @@ func (s *Service) factorAccount(ctx context.Context, tx pgx.Tx, current *Session
 	if err != nil {
 		return nil, err
 	}
-	if a == nil || a.Version != current.UserVersion || !a.EmailVerified {
+	if a == nil || a.ClosureAt != nil || a.Version != current.UserVersion || !a.EmailVerified {
 		return nil, Conflict
 	}
 	var sessionID string

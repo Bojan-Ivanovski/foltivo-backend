@@ -28,7 +28,9 @@ gracefully. A database outage leaves liveness available and readiness unavailabl
 Backend #3 selects application-owned Go authentication with PostgreSQL-backed
 opaque cookie sessions and Argon2id. Email uses a durable encrypted outbox and
 TLS-aware SMTP. TOTP uses pquerna/otp; verified passkeys use go-webauthn/webauthn.
-See [authentication](authentication.md), the [API contract](../api/authentication.md)
+Optional existing-account GitHub/Google login/linking uses golang.org/x/oauth2
+and coreos/go-oidc for verified Google identity tokens; Foltivo still owns sessions
+and MFA. See [authentication](authentication.md), the [API contract](../api/authentication.md)
 and [verification](verification.md).
 
 ## Pending product decisions

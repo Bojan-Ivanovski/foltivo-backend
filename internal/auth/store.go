@@ -18,18 +18,19 @@ type account struct {
 	Hash        string
 	Version     int64
 	TOTPEnabled bool
+	ClosureAt   *time.Time
 }
 
 func readAccount(row pgx.Row) (*account, error) {
 	var a account
-	err := row.Scan(&a.ID, &a.Email, &a.Name, &a.EmailVerified, &a.LibraryID, &a.Hash, &a.Version, &a.TOTPEnabled)
+	err := row.Scan(&a.ID, &a.Email, &a.Name, &a.EmailVerified, &a.LibraryID, &a.Hash, &a.Version, &a.TOTPEnabled, &a.ClosureAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	return &a, safe(err)
 }
 
-const accountColumns = `u.id::text,u.email,u.name,u.email_verified,l.id::text,u.password_hash,u.security_version,u.totp_enabled`
+const accountColumns = `u.id::text,u.email,u.name,u.email_verified,l.id::text,u.password_hash,u.security_version,u.totp_enabled,u.closure_requested_at`
 
 func (s *Store) account(ctx context.Context, email string) (*account, error) {
 	return readAccount(s.pool.QueryRow(ctx, `SELECT `+accountColumns+` FROM users u JOIN libraries l ON l.user_owner_id=u.id WHERE u.email=$1`, email))
@@ -67,7 +68,7 @@ func (s *Store) session(ctx context.Context, token string) (*Session, error) {
 u.id::text,u.email,u.name,u.email_verified,l.id::text,u.totp_enabled
 FROM auth_sessions s LEFT JOIN users u ON u.id=s.user_id LEFT JOIN libraries l ON l.user_owner_id=u.id
 WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()
-AND (s.user_id IS NULL OR (s.user_version=u.security_version AND l.id IS NOT NULL))`, tokenHash(token)).Scan(
+AND (s.user_id IS NULL OR (s.user_version=u.security_version AND l.id IS NOT NULL AND u.closure_requested_at IS NULL))`, tokenHash(token)).Scan(
 		&session.ID, &session.CreatedAt, &session.ExpiresAt, &session.RecentAuthAt, &version, &session.MFA,
 		&userID, &email, &name, &verified, &libraryID, &totp)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -91,6 +92,9 @@ func insertSession(ctx context.Context, tx pgx.Tx, token string, a *account, mfa
 	var version any
 	lifetime := 30 * time.Minute
 	if a != nil {
+		if a.ClosureAt != nil {
+			return nil, InvalidCredentials
+		}
 		userID = a.ID
 		version = a.Version
 		lifetime = 7 * 24 * time.Hour
@@ -144,7 +148,7 @@ func (s *Store) rotate(ctx context.Context, old *Session, a *account) (*Session,
 		if err != nil {
 			return nil, err
 		}
-		if current == nil || current.Hash != a.Hash || current.Version != a.Version {
+		if current == nil || current.ClosureAt != nil || current.Hash != a.Hash || current.Version != a.Version {
 			return nil, Conflict
 		}
 		a = current

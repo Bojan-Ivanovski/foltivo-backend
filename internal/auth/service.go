@@ -11,6 +11,7 @@ type Service struct {
 	email     *EmailDelivery
 	webAuthn  *wa.WebAuthn
 	webOrigin string
+	oauth     *oauthConfig
 }
 
 func NewService(store *Store, passwords *Passwords) *Service {
@@ -85,7 +86,7 @@ func (s *Service) Login(ctx context.Context, current *Session, peer, email, pass
 	if err != nil {
 		return nil, err
 	}
-	if !match || a == nil {
+	if !match || a == nil || a.ClosureAt != nil {
 		return nil, InvalidCredentials
 	}
 	return s.store.rotate(ctx, current, a)
