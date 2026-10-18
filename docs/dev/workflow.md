@@ -48,8 +48,7 @@ Establish the initial Go backend and development workflow so release work can
 proceed from a consistent, documented baseline.
 ```
 
-After the initial commit, each work item gets its own branch from the repository's
-default branch. Use `<type>/<issue-number>-<short-slug>` (for example,
+After the initial commit, each work item gets its own branch from `develop` and targets `develop`. Use `<type>/<issue-number>-<short-slug>` (for example,
 `feature/2-schema-migrations`). Keep one issue's work on its branch and use focused
 commits with this format:
 
@@ -127,3 +126,11 @@ When work is blocked, update the issue with what is blocked, why, and the
 specific next action or decision needed. Link the dependency or related issue.
 Do not leave a vague `blocked` label without context. Resume by updating the
 status and issue plan.
+
+## Issue-specific developer instructions
+
+Explicit developer instructions override the default workflow for that work.
+For #18, the developer selected Rust, SeaORM and SeaORM Migration and requested
+full parity implementation without reviews, verification or new tests. Record
+that limitation honestly. It does not authorize commits, pushes, merges or
+applying migrations, and it does not establish verified behavioral parity.

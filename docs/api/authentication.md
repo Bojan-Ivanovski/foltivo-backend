@@ -1,7 +1,7 @@
 # Authentication contract — version 1
 
 Selected by the orchestrator under the user's autonomous development directive.
-Go owns authentication. Frontend and backend implement this contract together;
+Rust owns authentication; #18 preserves the Go baseline contract. Frontend and backend implement this contract together;
 changes require coordinating both consumers. Backend #3 owns this design.
 
 ## Transport and state
@@ -94,7 +94,7 @@ current session and revoke/rotate as required; no stale pending-session upgrade.
 
 ## Passkeys
 
-Use go-webauthn/webauthn. Require discoverable resident credentials and user
+Use the Rust WebAuthn adapter with compatibility for existing Go credentials. Require discoverable resident credentials and user
 verification, and validate RP ID/origin. Public assertion options omit credential
 IDs/counts and use the same shape for unknown, password-only and passkey accounts.
 Challenges are short-lived, one-use and bound to the initiating browser session

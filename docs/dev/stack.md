@@ -2,42 +2,40 @@
 
 ## Confirmed
 
-- **Go** is the backend application language; the required toolchain is recorded
-  in [go.mod](../../go.mod).
-- The frontend/backend API boundary uses **REST**.
-- The module is `github.com/Bojan-Ivanovski/foltivo-backend`.
-- Product name: **Foltivo**. Intended public domain: **foltivo.com**. This does not
-  establish deployment, API subdomains, mail addresses or authentication callbacks.
+Backend #18 selects **Rust**, **SeaORM** and **SeaORM Migration**, superseding Go,
+pgx, Goose execution and the Ent adoption decision. The API boundary remains
+**REST**. This is the same foltivo-backend repository and PostgreSQL database.
 
-## Selected database infrastructure
+- Rust Cargo workspace: root application plus `database/` crate.
+- Axum HTTP boundary on Tokio, with graceful shutdown and worker cancellation.
+- PostgreSQL 18; local Compose pins the existing postgres:18.6-bookworm image.
+- SeaORM entities/ActiveModels for persistence, with explicit PostgreSQL through
+  SeaORM for conditional transitions and lock-sensitive operations.
+- SeaORM Migration executes registered, embedded SQL through an explicit CLI;
+  no API-startup migrations. A one-time adopter handles existing Goose history.
+- Argon2id, purpose-bound AES-256-GCM secrets, opaque PostgreSQL-backed sessions,
+  TOTP/recovery codes, WebAuthn and application-owned account lifecycle.
+- Lettre SMTP, encrypted durable email outbox and bounded retry worker.
+- Optional existing-account GitHub/Google identity linking/login, PKCE, verified
+  Google identity tokens and browser-bound coordinated completion.
 
-Backend #2 selects PostgreSQL 18, pgx v5 and Goose v3 with embedded SQL migrations.
-Local Docker Compose pins `postgres:18.6-bookworm`; the database is bound to
-localhost and uses a named volume. A separate `cmd/migrate` executable applies
-reviewed migrations with a PostgreSQL session advisory lock. The API never
-migrates on startup. See [database development](database.md) for configuration,
-commands, deployment ownership and recovery expectations.
+Product name is Foltivo; intended domain is foltivo.com. This does not select
+hosting, API subdomains, production mail addresses or deployment topology.
 
-The standard-library HTTP server in cmd/api uses net/http and ServeMux.
-`GET /health` returns process liveness; `GET /ready` verifies database connectivity.
-HTTP_ADDR overrides :8080. DATABASE_URL is required. SIGINT/SIGTERM shut down
-gracefully. A database outage leaves liveness available and readiness unavailable.
+## Design workflow
 
-## Selected authentication
+Keep database design review and manual synchronization of diagrams, SeaORM
+entities and reviewed migrations. Automatic diagram-to-model/SQL generation is
+deferred. See [database design](database-design.md), [database operations](database.md)
+and [migration notes](rust-migration.md).
 
-Backend #3 selects application-owned Go authentication with PostgreSQL-backed
-opaque cookie sessions and Argon2id. Email uses a durable encrypted outbox and
-TLS-aware SMTP. TOTP uses pquerna/otp; verified passkeys use go-webauthn/webauthn.
-Optional existing-account GitHub/Google login/linking uses golang.org/x/oauth2
-and coreos/go-oidc for verified Google identity tokens; Foltivo still owns sessions
-and MFA. See [authentication](authentication.md), the [API contract](../api/authentication.md)
-and [verification](verification.md).
+## Delivery status
 
-## Pending product decisions
+The initial Rust replacement was implemented without validation or new tests.
+Subsequent authorized local startup compiled successfully; health, database
+readiness and frontend-proxied session bootstrap returned 200. These observations
+do not prove full parity. Proper automated coverage is tracked in #19; no
+performance result is claimed.
 
-- The initial server uses net/http and its ServeMux. Additional framework,
-  query-layer, job, storage, live collaboration and hosting choices remain open.
-
-Use gofmt for Go source when introduced. Add dependencies, executable commands
-and CI checks only when their scope and prerequisites are established; do not
-claim a server or test suite exists because a Go module has been initialized.
+Resource authorization, content persistence and live collaboration are separate
+future product deliveries. Rust does not select their protocols or architecture.

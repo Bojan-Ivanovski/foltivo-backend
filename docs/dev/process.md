@@ -1,6 +1,6 @@
 # Backend development process
 
-This process adapts the frontend's staged issue workflow to the Foltivo Go
+This process adapts the frontend's staged issue workflow to the Foltivo Rust
 backend. Keep process docs under docs/dev and issue forms under
 .github/ISSUE_TEMPLATE. GitHub issues are the durable work record.
 
@@ -24,7 +24,7 @@ short release explanation. Do not repeat a ticket's parent in its description.
 | [Incidents](incidents.md) | Reports, evidence, linked response work and resolution |
 | [GitHub CLI](github-cli.md) | Issues, native relationships, Markdown uploads and PR commands |
 | [Ticket hierarchy](ticket-hierarchy.md) | Backend starting order and cross-repository boundaries |
-| [Stack](stack.md) | Confirmed Go/REST choices and pending technical decisions |
+| [Stack](stack.md) | Confirmed Rust/REST choices and pending technical decisions |
 | [Content model](content-model.md) | Product invariants and links to the frontend decisions |
 
 [AGENTS.md](../../AGENTS.md) points future sessions to this process.
