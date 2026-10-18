@@ -1,77 +1,67 @@
 # Foltivo Backend
 
-Go backend for **Foltivo**, a Markdown-first workspace for connected knowledge,
-writing and collaboration. The selected product domain is **foltivo.com**.
+Rust backend for **Foltivo**, a Markdown-first workspace for connected knowledge,
+writing and collaboration. The selected domain is **foltivo.com**.
 
-This repository contains a Go REST API, local PostgreSQL infrastructure and an
-embedded Goose schema migration command, and a Go authentication layer with
-queued verification/recovery email, TOTP/recovery codes and verified passkeys.
-See [authentication](docs/dev/authentication.md) for delivery status and security
-boundaries and [verification](docs/dev/verification.md) for repeatable checks.
+This repository contains the REST API, PostgreSQL infrastructure, SeaORM entities,
+SeaORM Migration command and application-owned authentication. It replaces the
+Go implementation within the same repository; Git retains the original source.
 
 ## Development
 
-Install the Go version specified in [go.mod](go.mod), then work from this directory.
-The module uses `github.com/Bojan-Ivanovski/foltivo-backend`. Follow the
-[database development guide](docs/dev/database.md) for configuration, migration
-authoring, production expectations and rollback/recovery.
-
-Set up local PostgreSQL and start the API:
+Install Rust through rustup, Docker with Compose, and native WebAuthn build
+prerequisites (on Debian/Ubuntu: `pkg-config` and `libssl-dev`). The toolchain is
+configured in [rust-toolchain.toml](rust-toolchain.toml).
 
 ```sh
 cp .env.example .env
-# Edit .env: choose a local database password and set AUTH_ENCRYPTION_KEY
-# to a persistent base64-encoded 32-byte random key (openssl rand -base64 32).
+# Edit .env: set a local database password and a persistent
+# AUTH_ENCRYPTION_KEY (openssl rand -base64 32).
 docker compose up -d --wait
 set -a
 . ./.env
 set +a
-go run ./cmd/migrate up
-go run ./cmd/api
+# Fresh database:
+cargo run --bin migrate -- up
+cargo run --bin api
 ```
 
-Open the frontend through its Vite development server with APP_ORIGIN matching
-that origin. Local verification/reset email is captured at http://localhost:8025.
-Mail requests are durably queued; SMTP failures retry rather than losing links.
-Keep the encryption key stable across restarts and separate from database backups.
+For a database previously migrated by Go/Goose, stop the old API/workers and run
+`cargo run --bin migrate -- adopt-goose` once before `up`. This transfers the
+applied history without recreating tables. Keep the existing encryption key.
+See [database operations](docs/dev/database.md) and
+[Rust migration notes](docs/dev/rust-migration.md).
 
-`GET http://localhost:8080/health` returns HTTP 200 with JSON:
+The frontend continues using its existing REST contract and Vite proxy.
+APP_ORIGIN must match its browser origin. Local email is captured at
+http://localhost:8025. SMTP failures remain in the encrypted outbox for retry.
 
-```json
-{"status":"ok"}
-```
+`GET /health` returns `200 {"status":"ok"}` independently of PostgreSQL.
+`GET /ready` returns 200 when PostgreSQL responds and 503 otherwise. The API never
+applies migrations. HTTP_ADDR defaults to `:8080`; SIGINT/SIGTERM initiate graceful
+shutdown. Docker Compose retains the PostgreSQL volume when stopped.
 
-This is a process liveness endpoint; it does not check database or external-service
-readiness. `GET /ready` returns 200 when PostgreSQL responds and 503 during a
-database outage. The API never runs migrations itself. Set `HTTP_ADDR` to override
-the default `:8080`, for example:
-
-```sh
-HTTP_ADDR=127.0.0.1:8081 go run ./cmd/api
-```
-
-`docker compose down` stops local PostgreSQL and retains its data volume. Ctrl+C
-or SIGTERM gracefully stops the API. Run `go test ./...` for unit tests; the
-database guide explains opt-in PostgreSQL integration verification.
-
-The application boundary is a Go REST API. Authentication is application-owned;
-resource authorization and live collaboration remain separate product deliveries.
+The initial migration was implemented without tests or validation, as requested.
+The subsequently authorized local startup compiled successfully; health, database
+readiness and session bootstrap through the frontend returned 200. Full behavioral
+parity has not been verified. Automated coverage is tracked in
+[backend #19](https://github.com/Bojan-Ivanovski/foltivo-backend/issues/19).
 
 ## Product and work tracking
 
 - [Frontend repository](https://github.com/Bojan-Ivanovski/foltivo-frontend)
-- [Account and authentication decision](https://github.com/Bojan-Ivanovski/foltivo-frontend/issues/7)
+- [Rust migration #18](https://github.com/Bojan-Ivanovski/foltivo-backend/issues/18)
 - [Development process](docs/dev/process.md)
-- [Authentication contract](docs/api/authentication.md)
+- [Stack](docs/dev/stack.md)
+- [Authentication](docs/dev/authentication.md)
+- [REST contract](docs/api/authentication.md)
 - [Contributing](CONTRIBUTING.md)
-- [Ticket hierarchy and starting order](docs/dev/ticket-hierarchy.md)
-- [Repository agent instructions](AGENTS.md)
 
 User Libraries support independent personal work; Organization Libraries support
-shared organizational work. Libraries own Folios, and optional Books reference
-Folios without granting access. Working revisions, Git commits and published
-Folio versions are separate identities. The frontend's approved content-model
-and release decisions remain the reference until explicitly revised.
+shared work. Libraries own Folios; optional Books reference Folios without
+conferring access. Working revisions, Git commits and published versions are
+separate identities. Content features and resource authorization remain separate
+deliveries from the existing account/authentication backend.
 
 ## License
 

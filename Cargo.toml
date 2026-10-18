@@ -1,0 +1,51 @@
+[workspace]
+members = [".", "database"]
+resolver = "2"
+
+[package]
+name = "foltivo-backend"
+version = "0.1.0"
+edition = "2021"
+publish = false
+default-run = "api"
+
+[dependencies]
+foltivo-database = { path = "database" }
+sea-orm = { version = "1.1.19", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json"] }
+sea-orm-migration = { version = "1.1.19", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls"] }
+axum = { version = "0.8", features = ["json", "query", "tokio", "http1"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+base64 = "0.22"
+rand = "0.8"
+sha2 = "0.10"
+sha1 = "0.10"
+hmac = "0.12"
+subtle = "2"
+aes-gcm = "0.10"
+argon2 = "0.5"
+data-encoding = "2"
+url = "2"
+ipnet = "2"
+email_address = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+jsonwebtoken = "9"
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
+webauthn-rs-core = "=0.5.2"
+webauthn-rs-proto = "=0.5.2"
+ciborium = "0.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+humantime = "2"
+mime = "0.3"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "service"] }
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+lto = "thin"
+strip = true

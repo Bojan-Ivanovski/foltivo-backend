@@ -6,9 +6,9 @@ under docs/dev and GitHub issue forms under .github/ISSUE_TEMPLATE.
 
 ## Scope and decisions
 
-- Use Go for the application backend and REST for the frontend API boundary.
+- Use Rust for the application backend, SeaORM for database access and SeaORM Migration for schema execution; retain REST for the frontend API boundary. Backend #18 supersedes the former Go/Ent selection.
 - Do not infer an auth-provider, database, deployment or collaboration protocol
-  decision from the choice of Go. The frontend #7 proposals need Go-aware review.
+  decision from the language choice. Preserve the existing frontend contracts.
 - Use `gh` with `--repo Bojan-Ivanovski/foltivo-backend`.
 - Use native parent and dependency relationships. Release work defaults to backend
   epic #1 unless a delivery group or developer instruction specifies another
@@ -49,7 +49,22 @@ and [ticket hierarchy](docs/dev/ticket-hierarchy.md) before designing contracts.
   subjects; apply Component: labels after selecting the solution's affected areas.
 - Label definitions are recorded in .github/labels.json. Preserve existing labels
   and issue assignments when synchronizing definitions.
-- Follow .editorconfig and gofmt for Go source. Keep build outputs, local
+- Follow .editorconfig and Rust formatting conventions. Keep build outputs, local
   configuration and credentials out of Git.
 - Use the PR template to record changes, owning issues, performed verification
   and material risks. Do not treat template placeholders as performed checks.
+
+## Rust migration and database ownership
+
+- Keep the application and database Cargo crates in this repository. Do not create
+  a separate backend/database repository.
+- Follow docs/dev/rust-migration.md, docs/dev/database.md and
+  docs/dev/database-design.md. Preserve the existing Go behavior and data formats.
+- Keep all fourteen SeaORM mappings, ordered migration SQL and preserved Goose
+  provenance under database/. The API never migrates automatically.
+- Diagram, ORM model and migration synchronization is manual for now.
+- The initial #18 implementation excluded reviews, validation and new tests. The
+  developer subsequently authorized local live startup and delivery to develop.
+  Basic startup/health/session observations are recorded in docs/dev/verification.md;
+  do not claim full parity. Proper test coverage is separate work under #19.
+  Continue to require an explicit request before adding/running tests.

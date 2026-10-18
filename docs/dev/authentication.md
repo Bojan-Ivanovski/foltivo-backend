@@ -1,10 +1,16 @@
-# Go authentication foundation
+> Rust migration note: #18 carries these policies into Rust with SeaORM and
+> SeaORM Migration. Historical delivery/verification statements below describe
+> the Go baseline. No Rust build, test, runtime or provider validation was run.
+> Library-specific differences and data compatibility are documented in
+> [Rust migration notes](rust-migration.md).
 
-Backend #3 selects an in-application Go design. The REST contract is in
+# Rust authentication foundation
+
+Backend #18 ports the application-owned authentication selected in #3 to Rust. The REST contract is in
 [authentication API](../api/authentication.md). PostgreSQL owns users, password
 hashes, personal Library ownership, hashed opaque sessions and throttle counters.
 No Node authentication service or application JWT requirement is introduced.
-Optional GitHub/Google identities extend existing Go-owned accounts without
+Optional GitHub/Google identities extend existing application-owned accounts without
 outsourcing their session or authorization policy. The frontend consumes the same contract from an isolated branch
 based on its merged Foltivo rebrand.
 
@@ -46,13 +52,12 @@ STARTTLS with certificate validation; SMTP_USERNAME/PASSWORD are optional paired
 credentials, never logged. APP_ORIGIN controls fragment-token links. The real
 frontend consumes those tokens from the fragment, not URL query logs.
 
-The core-only test fixture can still bypass email verification through trusted
-SQL inside isolated tests; that is not an application endpoint. Lifecycle tests
-must separately verify real mail transport and token consumption.
+Historical Go fixtures and test coverage remain in Git. They are not Rust
+verification or application endpoints.
 
 ## Authentication factors
 
-TOTP uses [pquerna/otp](https://github.com/pquerna/otp) with six digits, a
+TOTP uses HMAC-SHA1 in the Rust authentication service with six digits, a
 30-second period and a one-step clock tolerance. Pending enrollment expires in
 10 minutes and cannot affect policy until a code is confirmed. Encrypted secrets
 are bound to the account through AES-GCM associated data. An accepted time step
@@ -66,7 +71,8 @@ remove/replace the factor or regenerate backups. Recovery-code reauthentication
 also revokes other sessions. Losing every factor and backup never permits an
 email-only bypass.
 
-Passkeys use [go-webauthn/webauthn v0.18.2](https://pkg.go.dev/github.com/go-webauthn/webauthn@v0.18.2/webauthn).
+Passkeys use the Rust WebAuthn adapter in src/auth/passkeys.rs, with readers for
+the former Go credential and ceremony formats.
 The RP ID is the hostname of APP_ORIGIN. For local passkey use set
 `APP_ORIGIN=http://localhost:5173` and browse that hostname; numeric IP addresses
 cannot be WebAuthn RP IDs. The API can still listen on 127.0.0.1. Production must
@@ -136,18 +142,17 @@ known event names; no passwords, cookie tokens, email links or driver details.
   membership is not required. Resource sharing/authorization remains a distinct
   boundary and is not inferred from account identity.
 
-## Verification
+## Verification status
 
-Run the commands in [verification](verification.md),
-including TEST_DATABASE_URL against a dedicated database. Core integration tests
-use isolated schemas and trusted test-only SQL to verify partial-state boundaries;
-that fixture is not an application email-verification implementation. Live email/browser tests exercise real transport and single-use token workflows.
+The developer requested #18 without reviews, validation or new tests. No Rust
+compatibility, runtime or security verification is claimed. Historical Go checks
+do not establish parity for the new implementation; see [status](verification.md).
 
 ## Account management completion
 
 Backend #9–#12 extend the foundation with verified email changes, session controls,
 optional GitHub/Google linked identities and recoverable account closure. Apply
-migrations through `cmd/migrate` before starting this version of the API; startup
+migrations through `cargo run --bin migrate -- up` before starting this version of the API; startup
 never applies migrations automatically.
 
 Email changes retain the old verified sign-in address until a 30-minute,
