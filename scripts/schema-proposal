@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: scripts/schema-proposal <issue-number>-<proposal-name>
+
+Example:
+  scripts/schema-proposal 21-content-hierarchy
+
+Creates database/proposals/<issue-number>-<proposal-name>.dbml from the
+committed SeaORM migration history using a disposable PostgreSQL container.
+The output file is never overwritten.
+EOF
+}
+
+if [[ $# -ne 1 ]]; then
+  usage
+  exit 2
+fi
+
+proposal_key=$1
+if [[ ! $proposal_key =~ ^[1-9][0-9]*-[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  echo "Proposal name must be <issue-number>-<lowercase-kebab-name>." >&2
+  usage
+  exit 2
+fi
+
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+output_dir="database/proposals"
+output_path="$output_dir/$proposal_key.dbml"
+
+if [[ -e $output_path || -L $output_path ]]; then
+  echo "Proposal already exists; choose a new name: $output_path" >&2
+  exit 1
+fi
+
+baseline_changes=$(git status --porcelain --untracked-files=all -- \
+  Cargo.toml Cargo.lock database/Cargo.toml database/migrations \
+  database/src/lib.rs src/bin/migrate.rs src/config.rs)
+if [[ -n $baseline_changes ]]; then
+  echo "Commit migration or migration-runner changes before generating a schema proposal." >&2
+  exit 1
+fi
+
+for required_command in cargo db2dbml docker git grep mktemp node openssl; do
+  if ! command -v "$required_command" >/dev/null 2>&1; then
+    echo "Required command not found: $required_command" >&2
+    exit 1
+  fi
+done
+
+node_version=$(node --version)
+node_major=${node_version#v}
+node_major=${node_major%%.*}
+if [[ ! $node_major =~ ^[0-9]+$ ]] || ((node_major < 18)); then
+  echo "DBML CLI requires Node.js 18 or newer; found $node_version." >&2
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker is unavailable or its daemon is not running." >&2
+  exit 1
+fi
+
+mkdir -p "$output_dir"
+
+# Keep this digest aligned with the PostgreSQL image pinned in compose.yaml.
+postgres_image='postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c'
+source_commit=$(git rev-parse HEAD)
+container_name="foltivo-schema-proposal-${$}-${RANDOM}"
+database_name='foltivo_schema_proposal'
+database_user='foltivo_schema_proposal'
+database_password=$(openssl rand -hex 24)
+temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/foltivo-schema-proposal.XXXXXXXX")
+container_id=''
+temporary_output=''
+
+cleanup() {
+  exit_code=$?
+  trap - EXIT
+
+  if [[ -n $container_id ]]; then
+    docker rm --force "$container_id" >/dev/null 2>&1 || true
+  fi
+  if [[ -n $temporary_output && -e $temporary_output ]]; then
+    rm -f -- "$temporary_output"
+  fi
+  if [[ -n $temporary_directory && -d $temporary_directory ]]; then
+    rm -rf -- "$temporary_directory"
+  fi
+
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+container_id=$(docker run \
+  --detach \
+  --rm \
+  --name "$container_name" \
+  --publish '127.0.0.1::5432' \
+  --env "POSTGRES_DB=$database_name" \
+  --env "POSTGRES_USER=$database_user" \
+  --env "POSTGRES_PASSWORD=$database_password" \
+  "$postgres_image")
+
+ready=false
+for _ in {1..60}; do
+  if docker exec "$container_id" pg_isready \
+    --username "$database_user" \
+    --dbname "$database_name" >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ $ready != true ]]; then
+  echo "The disposable PostgreSQL container did not become ready within 60 seconds." >&2
+  exit 1
+fi
+
+port_mapping=$(docker port "$container_id" 5432/tcp)
+host_port=${port_mapping##*:}
+if [[ ! $host_port =~ ^[0-9]+$ ]]; then
+  echo "Could not determine the disposable PostgreSQL host port." >&2
+  exit 1
+fi
+
+database_url="postgresql://${database_user}:${database_password}@127.0.0.1:${host_port}/${database_name}?sslmode=disable"
+export_url="${database_url}&schemas=public"
+
+echo "Applying committed SeaORM migrations to the disposable database..."
+APP_ENV=test DATABASE_URL="$database_url" cargo run --locked --quiet --bin migrate -- up
+
+generated_dbml="$temporary_directory/schema.dbml"
+echo "Exporting the migrated schema to DBML..."
+(
+  cd "$temporary_directory"
+  db2dbml postgres "$export_url" -o "$generated_dbml"
+)
+
+# db2dbml emits PostgreSQL optional relationship markers (<? and ?<?) that
+# are not valid DBML relationship operators. Optionality is already recorded
+# on the foreign-key column, so normalize these to DBML's supported one-to-many
+# operator before saving the proposal.
+node -e 'const fs = require("node:fs"); const file = process.argv[1]; const dbml = fs.readFileSync(file, "utf8"); fs.writeFileSync(file, dbml.replace(/\?*<\?+/g, "<"));' "$generated_dbml"
+
+if [[ ! -s $generated_dbml ]] || ! grep -Eq '^Table[[:space:]]' "$generated_dbml"; then
+  echo "The DBML exporter did not produce a schema containing tables." >&2
+  exit 1
+fi
+
+temporary_output=$(mktemp "$output_dir/.schema-proposal.XXXXXXXX")
+{
+  printf '// Generated from committed SeaORM migrations.\n'
+  printf '// Source commit: %s\n' "$source_commit"
+  printf '// Migration baseline: 00001_bootstrap through 00006_oauth.\n'
+  printf '// seaql_migrations is SeaORM bookkeeping, not a product table.\n\n'
+  cat "$generated_dbml"
+} > "$temporary_output"
+
+# Hard-link creation is atomic and fails if another process created the target.
+if ! ln "$temporary_output" "$output_path"; then
+  echo "Could not create proposal output; it may already exist: $output_path" >&2
+  exit 1
+fi
+rm -f -- "$temporary_output"
+temporary_output=''
+
+echo "Created $output_path"
+echo "Review and edit the proposal in the local DBML live preview."
