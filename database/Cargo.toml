@@ -7,3 +7,8 @@ publish = false
 [dependencies]
 sea-orm = { version = "1.1.19", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json"] }
 sea-orm-migration = { version = "1.1.19", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls"] }
+
+[dev-dependencies]
+rstest.workspace = true
+foltivo-test-support = { path = "../test-support" }
+tokio.workspace = true

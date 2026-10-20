@@ -1,9 +1,11 @@
 # Contributing to Foltivo Backend
 
 Start with [the development process](docs/dev/process.md) and
-[the current stack](docs/dev/stack.md). Use the repository issue forms and native
-parents/dependencies. Keep work bounded, attach findings and solution options
-when analysis is requested, and let the developer select the solution.
+[the current stack](docs/dev/stack.md), then use the
+[Rust testing guide](docs/dev/testing.md) when working with test tooling. Use the
+repository issue forms and native parents/dependencies. Keep work bounded,
+attach findings and solution options when analysis is requested, and let the
+developer select the solution.
 
 Follow [the workflow](docs/dev/workflow.md) for issue branches, exact Type: label
 commit subjects and the required **Summary** commit body. Do not commit or push

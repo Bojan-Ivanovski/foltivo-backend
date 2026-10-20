@@ -42,3 +42,12 @@ there were no compilation errors.
 Backend #19 tracks proper Rust unit, integration, protocol, migration and
 concurrency coverage and CI integration. Creating that ticket does not introduce
 or execute tests.
+
+## Test tooling — backend #23
+
+The workspace now pins rstest and Testcontainers for test development and
+provides a shared fixture that starts a disposable PostgreSQL 18.6 container.
+The CI Verify job runs `cargo test --locked --workspace` before building the
+executables. This configures the tooling and execution path; it does not add
+behavioral tests or establish backend parity. No Rust tests were run as part of
+this tooling change. See the [testing guide](testing.md).
