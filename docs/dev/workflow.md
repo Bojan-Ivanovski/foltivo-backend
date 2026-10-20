@@ -17,8 +17,11 @@ comments.
    **[Selected Solution]** and fill Solution with the changes, affected areas,
    and reason for choosing it. Split work that cannot be reviewed as one bounded
    change into linked issues.
-3. **Implement.** Work on a branch associated with the issue. Keep changes within
-   its agreed scope. Update the issue when a decision changes the plan or scope.
+3. **Implement.** All agents, including Codex and delegated agents, implement in
+   a dedicated Git worktree for the issue branch, never in the primary checkout.
+   Use one worktree per issue and do not share a worktree between concurrent
+   implementation work. Keep changes within the agreed scope. Update the issue
+   when a decision changes the plan or scope.
 4. **Review.** Open a pull request that links the issue (for example, `Closes
    #2`). Describe the change and verification in the pull request. Address
    review feedback before merging.
@@ -48,7 +51,10 @@ Establish the initial Go backend and development workflow so release work can
 proceed from a consistent, documented baseline.
 ```
 
-After the initial commit, each work item gets its own branch from `develop` and targets `develop`. Use `<type>/<issue-number>-<short-slug>` (for example,
+After the initial commit, each work item gets its own branch from `develop` and
+dedicated Git worktree. All implementation agents use that worktree; the primary
+checkout is not an implementation workspace. Target `develop`. Use
+`<type>/<issue-number>-<short-slug>` (for example,
 `feature/2-schema-migrations`). Keep one issue's work on its branch and use focused
 commits with this format:
 
@@ -71,27 +77,15 @@ pushing a commit, do not rewrite it unless the developer explicitly asks. For an
 authorized rewrite, use `--force-with-lease` and stop if the remote has advanced.
 The developer reviews and merges pull requests.
 
-## Labels and project status
+## Labels and Project Foltivo
 
-Labels describe work; they do not replace the issue body or project board.
-Use the repository's configured labels when available. Keep label groups
-independent where practical:
-
-- **Type:** read the actual repository labels with `gh label list`; examples
-  include `Type: Feature`, `Type: Bug`, and `Type: Documentation`. Use exactly one
-  appropriate existing type for work items. Do not invent a substitute type.
-- **Component:** apply the appropriate existing component labels after a
-  solution is selected, based on the areas it affects.
-- **Priority:** `Priority: High`, `Priority: Medium`, or `Priority: Low`.
-- **Size:** `Size: Small`, `Size: Medium`, or `Size: Large` as a rough planning
-  aid, not a promise.
-- **Status:** use the project board for workflow state when one is configured;
-  otherwise use `Status: Ready`, `Status: In Progress`, `Status: Blocked`, and
-  `Status: In Review` consistently.
-
-Do not invent labels when an appropriate one exists. A blocker should identify
-the dependency or decision needed, with a link where possible. Remove the
-blocked status once work can continue.
+Follow [Ticket planning](ticket-planning.md) for the required issue labels,
+assignee, parent and dependency relationships, Project Foltivo fields, and status
+transitions. Set `Type:` at creation, `Component:` after the developer selects a
+solution, and `Disposition:` when the issue is ready to close. Set Project
+Foltivo `Priority` and `Size` at creation; use its `Status` field throughout
+analysis and delivery. The configured project values and size-based splitting
+rules are defined in that guide.
 
 ## Dependencies and grouped work
 

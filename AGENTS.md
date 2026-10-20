@@ -22,6 +22,11 @@ and [ticket hierarchy](docs/dev/ticket-hierarchy.md) before designing contracts.
 
 ## Issues and analysis
 
+- Follow [ticket planning](docs/dev/ticket-planning.md) for every issue: set its
+  `Type:` label, assignee, Project Foltivo priority and size at creation; add
+  native parent/dependency relationships; apply `Component:` only after solution
+  selection and `Disposition:` when ready to close; update project status through
+  analysis and delivery.
 - Work items have exactly Summary, Scope, Analysis, Solution and Details.
 - Fill Summary/Scope at creation; leave other sections pending until their stage.
 - No Acceptance criteria, Implementation plan or Closeout sections.
@@ -35,12 +40,16 @@ and [ticket hierarchy](docs/dev/ticket-hierarchy.md) before designing contracts.
 ## Commits and delivery
 
 - Wait for explicit commit or push requests; authorization is scoped to that work.
+- All agents, including Codex and delegated agents, must do implementation work
+  in a dedicated Git worktree for the issue branch. Do not implement in the
+  primary checkout or share one worktree between concurrent issue work.
 - First commit: Initial[#1]: <short explanation>.
 - Later commits: <Issue Type>[#<issue-number>]: <short explanation>, copying the
   exact value of the issue's Type: label.
 - Every commit body contains only **Summary**, a blank line and why it was done.
-- Use issue branches for subsequent work and inspect staged changes. Record
-  delivery and verification in the PR; the developer merges.
+- Use issue branches in dedicated worktrees for subsequent implementation and
+  inspect staged changes. Record delivery and verification in the PR; the
+  developer merges.
 - Do not add/run tests unless the developer requests testing or verification.
 
 ## Repository conventions
