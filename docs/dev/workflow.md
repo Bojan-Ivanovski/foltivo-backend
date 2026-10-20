@@ -17,8 +17,11 @@ comments.
    **[Selected Solution]** and fill Solution with the changes, affected areas,
    and reason for choosing it. Split work that cannot be reviewed as one bounded
    change into linked issues.
-3. **Implement.** Work on a branch associated with the issue. Keep changes within
-   its agreed scope. Update the issue when a decision changes the plan or scope.
+3. **Implement.** All agents, including Codex and delegated agents, implement in
+   a dedicated Git worktree for the issue branch, never in the primary checkout.
+   Use one worktree per issue and do not share a worktree between concurrent
+   implementation work. Keep changes within the agreed scope. Update the issue
+   when a decision changes the plan or scope.
 4. **Review.** Open a pull request that links the issue (for example, `Closes
    #2`). Describe the change and verification in the pull request. Address
    review feedback before merging.
@@ -48,7 +51,10 @@ Establish the initial Go backend and development workflow so release work can
 proceed from a consistent, documented baseline.
 ```
 
-After the initial commit, each work item gets its own branch from `develop` and targets `develop`. Use `<type>/<issue-number>-<short-slug>` (for example,
+After the initial commit, each work item gets its own branch from `develop` and
+dedicated Git worktree. All implementation agents use that worktree; the primary
+checkout is not an implementation workspace. Target `develop`. Use
+`<type>/<issue-number>-<short-slug>` (for example,
 `feature/2-schema-migrations`). Keep one issue's work on its branch and use focused
 commits with this format:
 
