@@ -22,7 +22,20 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
       - name: Set up Rust
         run: rustup show active-toolchain
+      - name: Set up Node for the Chromium protocol fixture
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Set up Chromium virtual authenticator
+        id: chrome
+        uses: browser-actions/setup-chrome@48483d551c22a1fe6154c6a195ccc6d5773dc8c4
+        with:
+          chrome-version: stable
+          install-dependencies: true
       - name: Run workspace tests
+        env:
+          FOLTIVO_TEST_CHROMIUM: ${{ steps.chrome.outputs.chrome-path }}
+          RUST_TEST_THREADS: '4'
         run: cargo test --locked --workspace
       - name: Build Rust executables
         run: cargo build --locked --release --workspace --bins

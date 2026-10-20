@@ -51,3 +51,42 @@ The CI Verify job runs `cargo test --locked --workspace` before building the
 executables. This configures the tooling and execution path; it does not add
 behavioral tests or establish backend parity. No Rust tests were run as part of
 this tooling change. See the [testing guide](testing.md).
+
+## Coverage checkpoint — backend #19, 2026-10-20
+
+The developer selected the layered testing approach and authorized full #19
+implementation, including test creation and execution. Work is on
+`maintenance/19-rust-coverage` in its dedicated worktree. Child scopes #29–#39
+have native parent/dependency links, selected-solution/findings attachments and
+Project metadata. Work remains paused at the developer's request; this is a
+checkpoint, not a claim that #19 is ready to close.
+
+Performed locally before the pause:
+
+- `RUST_TEST_THREADS=4 cargo test --locked --workspace`: 101 passed, zero
+  failed/ignored. This includes real disposable PostgreSQL, local SMTP/provider
+  doubles, Chromium CTAP2 signatures/legacy Go vectors, migration CLI and live
+  socket/process checks.
+- `cargo build --locked --release --workspace --bins`: passed. One existing
+  warning remains for deserialized identity-token fields used by validation.
+- `cargo fmt --all --check`, `git diff --check` and
+  `node --check tests/fixtures/authenticator.mjs`: passed when run.
+- Compared all six preserved Goose up SQL bodies with the embedded migration
+  SQL after normalizing whitespace/Goose annotations: matched.
+- After the full run, refined the SMTP fixture to observe a worker reaching
+  DATA before cancellation, replacing a scheduling delay. The targeted
+  `smtp_timeout_is_bounded_and_background_workers_cancel_without_committing_partial_delivery`
+  test passed on that refinement. The other affected fixture consumers have not
+  yet been rerun after that final test-support change.
+
+The real keep-alive test initially failed beyond its configured idle bound.
+Waking the pending reader on phase changes restored actual closure at sixty
+seconds; the full suite includes this regression. No personal/deployed database,
+live provider credentials, deployment or remote CI execution was used or
+claimed. Build artifacts are outside source control.
+
+Resume with verification of the final shared SMTP-fixture change across its
+consumers, a final scope/evidence review against #19 and the
+[coverage map](testing-coverage.md), remaining ticket/documentation cleanup, and
+PR preparation. Do not close #19 or its children solely because this checkpoint
+is pushed. The developer merges.

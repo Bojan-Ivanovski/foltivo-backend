@@ -183,3 +183,98 @@ pub fn password(v: &str) -> Result<()> {
 pub fn identifier(v: &str) -> bool {
     uuid::Uuid::parse_str(v).is_ok_and(|id| id.to_string() == v)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[rstest::rstest]
+    #[case(" A@EXAMPLE.com ", Some("a@example.com"))]
+    #[case("bad", None)]
+    #[case("a\r\n@example.com", None)]
+    #[case("two words@example.com", None)]
+    fn canonical_email(#[case] input: &str, #[case] expected: Option<&str>) {
+        assert_eq!(email(input).ok().as_deref(), expected);
+    }
+    #[test]
+    fn unicode_name_and_password_boundaries_and_identifiers() {
+        assert_eq!(name("  Alice α  ").unwrap(), "Alice α");
+        assert!(name("").is_err());
+        assert!(name("x\ny").is_err());
+        assert!(name(&"α".repeat(100)).is_ok());
+        assert!(name(&"α".repeat(101)).is_err());
+        for (length, valid) in [(14, false), (15, true), (128, true), (129, false)] {
+            assert_eq!(password(&"🔐".repeat(length)).is_ok(), valid);
+        }
+        assert!(password("               ").is_ok()); // Passwords are never trimmed.
+        assert!(identifier("96b7ebce-b93a-4c81-8d98-cc650679ddc5"));
+        assert!(!identifier("96B7EBCE-B93A-4C81-8D98-CC650679DDC5"));
+    }
+    #[test]
+    fn independent_go_crypto_vectors_and_integrity_failures() {
+        let vector: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/go-compat.json")).unwrap();
+        let secrets = Secrets::new(vector["key"].as_str().unwrap()).unwrap();
+        let cipher = STANDARD
+            .decode(vector["ciphertext"].as_str().unwrap())
+            .unwrap();
+        let plain = vector["plaintext"].as_str().unwrap().as_bytes();
+        assert_eq!(secrets.open(&cipher, "email-outbox/v1").unwrap(), plain);
+        assert!(secrets.open(&cipher, "totp/wrong-user").is_err());
+        let mut corrupt = cipher.clone();
+        *corrupt.last_mut().unwrap() ^= 1;
+        assert!(secrets.open(&corrupt, "email-outbox/v1").is_err());
+        for length in 0..28 {
+            assert!(secrets.open(&cipher[..length], "email-outbox/v1").is_err());
+        }
+        assert_eq!(
+            csrf(vector["token"].as_str().unwrap()),
+            vector["csrf"].as_str().unwrap()
+        );
+        assert!(valid_token(vector["token"].as_str().unwrap()));
+        assert!(!valid_token(
+            &(vector["token"].as_str().unwrap().to_string() + "=")
+        ));
+        assert!(Secrets::new("bad").is_err());
+        assert!(Secrets::new(&STANDARD.encode([0; 31])).is_err());
+        let one = secrets.seal(plain, "email-outbox/v1").unwrap();
+        let two = secrets.seal(plain, "email-outbox/v1").unwrap();
+        assert_ne!(one, two);
+        assert_eq!(secrets.open(&one, "email-outbox/v1").unwrap(), plain);
+    }
+    #[tokio::test]
+    async fn production_argon_parameters_admission_and_safe_failures() {
+        let passwords = Passwords::new().await.unwrap();
+        let go: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/go-password.json")).unwrap();
+        assert!(passwords
+            .compare(
+                go["password"].as_str().unwrap(),
+                go["hash"].as_str().unwrap()
+            )
+            .await
+            .unwrap());
+        let hash = passwords
+            .password_hash("correct horse battery staple")
+            .await
+            .unwrap();
+        assert!(hash.starts_with("$argon2id$v=19$m=65536,t=3,p=4$"));
+        assert!(passwords
+            .compare("correct horse battery staple", &hash)
+            .await
+            .unwrap());
+        assert!(!passwords.compare("wrong password", &hash).await.unwrap());
+        assert!(!passwords.compare("wrong password", "").await.unwrap());
+        assert!(passwords.compare("password", "invalid PHC").await.is_err());
+        let permits = passwords.slots.acquire_many(2).await.unwrap();
+        let error = passwords.password_hash("password").await.unwrap_err();
+        assert_eq!(error.status, 503);
+        assert_eq!(error.retry_after, 2);
+        assert!(passwords.compare("password", &hash).await.is_err());
+        drop(permits);
+        assert!(passwords
+            .compare("correct horse battery staple", &hash)
+            .await
+            .unwrap());
+    }
+}

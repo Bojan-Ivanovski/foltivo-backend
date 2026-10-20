@@ -10,9 +10,9 @@ use std::{
     pin::Pin,
     sync::{
         atomic::{AtomicU8, Ordering},
-        Arc,
+        Arc, Mutex,
     },
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
     time::Duration,
 };
 use tokio::{
@@ -27,6 +27,28 @@ use tower::ServiceExt;
 const HEADER: u8 = 0;
 const BODY: u8 = 1;
 const IDLE: u8 = 2;
+
+struct Phase {
+    value: AtomicU8,
+    read_waker: Mutex<Option<Waker>>,
+}
+impl Phase {
+    fn new() -> Self {
+        Self {
+            value: AtomicU8::new(HEADER),
+            read_waker: Mutex::new(None),
+        }
+    }
+    fn set(&self, value: u8) {
+        self.value.store(value, Ordering::Release);
+        // HTTP dispatch can change phase while the socket is pending. Wake the
+        // reader immediately so its deadline starts at the transition, rather
+        // than when the previous phase's timer eventually wakes it.
+        if let Some(waker) = self.read_waker.lock().expect("phase waker mutex").as_ref() {
+            waker.wake_by_ref();
+        }
+    }
+}
 fn read_duration(phase: u8) -> Duration {
     Duration::from_secs(match phase {
         IDLE => 60,
@@ -36,13 +58,13 @@ fn read_duration(phase: u8) -> Duration {
 }
 struct DeadlineIo {
     socket: TcpStream,
-    phase: Arc<AtomicU8>,
+    phase: Arc<Phase>,
     observed: u8,
     read: Pin<Box<Sleep>>,
     write: Option<Pin<Box<Sleep>>>,
 }
 impl DeadlineIo {
-    fn new(socket: TcpStream, phase: Arc<AtomicU8>) -> Self {
+    fn new(socket: TcpStream, phase: Arc<Phase>) -> Self {
         Self {
             socket,
             phase,
@@ -59,7 +81,8 @@ impl AsyncRead for DeadlineIo {
         buffer: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         let this = self.get_mut();
-        let phase = this.phase.load(Ordering::Acquire);
+        *this.phase.read_waker.lock().expect("phase waker mutex") = Some(cx.waker().clone());
+        let phase = this.phase.value.load(Ordering::Acquire);
         if phase != this.observed {
             this.observed = phase;
             this.read
@@ -70,7 +93,7 @@ impl AsyncRead for DeadlineIo {
         match Pin::new(&mut this.socket).poll_read(cx, buffer) {
             Poll::Ready(result) => {
                 if result.is_ok() && buffer.filled().len() > before && phase == IDLE {
-                    this.phase.store(HEADER, Ordering::Release);
+                    this.phase.set(HEADER);
                     this.observed = HEADER;
                     this.read
                         .as_mut()
@@ -151,16 +174,16 @@ pub async fn serve(listener: TcpListener, app: Router, stop: CancellationToken) 
     result
 }
 async fn connection(socket: TcpStream, address: SocketAddr, app: Router, stop: CancellationToken) {
-    let phase = Arc::new(AtomicU8::new(HEADER));
+    let phase = Arc::new(Phase::new());
     let io = TokioIo::new(DeadlineIo::new(socket, phase.clone()));
     let service = service_fn(move |mut request: hyper::Request<Incoming>| {
         let app = app.clone();
         let phase = phase.clone();
         request.extensions_mut().insert(ConnectInfo(address));
-        phase.store(BODY, Ordering::Release);
+        phase.set(BODY);
         async move {
             let result = app.oneshot(request.map(Body::new)).await;
-            phase.store(IDLE, Ordering::Release);
+            phase.set(IDLE);
             result
         }
     });

@@ -1,6 +1,6 @@
 use super::email::invalidate_access;
 use super::*;
-use foltivo_database::entities::{auth_email_tokens, auth_passkeys, auth_recovery_codes};
+use foltivo_database::entities::{auth_email_tokens, auth_passkeys};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, TransactionTrait};
 use serde_json::{json, Value as Json};
 use tokio_util::sync::CancellationToken;

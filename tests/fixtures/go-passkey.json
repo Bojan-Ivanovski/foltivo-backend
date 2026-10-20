@@ -1,0 +1,31 @@
+{
+  "baseline": "6fc5145a7f0983dd1a3c92a44216ec9de041df55",
+  "ceremony": {
+    "challenge": "c3ludGhldGljLWdvLWNoYWxsZW5nZS0zMi1ieXRlcyEh",
+    "rpId": "localhost",
+    "expires": "0001-01-01T00:00:00Z",
+    "userVerification": "required"
+  },
+  "credential": {
+    "id": "Zm9sdGl2by1nby1iYXNlbGluZS1jcmVkZW50aWFs",
+    "publicKey": "pQECAyYgASFYIGsX0fLhLEJH+Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWIlggT+NC4v4af5uO5+tKfA+eFivOM1drMV7Oy7ZAaDe/UfU=",
+    "attestationFormat": "none",
+    "transport": [
+      "internal"
+    ],
+    "flags": {
+      "userPresent": true,
+      "userVerified": true,
+      "backupEligible": false,
+      "backupState": false
+    },
+    "authenticator": {
+      "signCount": 1
+    },
+    "attestation": {
+      "clientDataJSON": "cHJlc2VydmVkLWhpc3RvcmljYWwtY2xpZW50LWRhdGE=",
+      "publicKeyAlgorithm": -7
+    }
+  },
+  "privateKey": "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhRANCAARrF9Hy4SxCR/i85uVjpEDydwN9gS3rM6D0oTlF2JjClk/jQuL+Gn+bjufrSnwPnhYrzjNXazFezsu2QGg3v1H1"
+}
