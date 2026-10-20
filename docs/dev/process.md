@@ -21,11 +21,13 @@ short release explanation. Do not repeat a ticket's parent in its description.
 | --- | --- |
 | [Workflow](workflow.md) | Issue stages, branches, commits, labels and PRs |
 | [Issue format](issue-format.md) | Work-item and release-epic format and analysis attachments |
+| [Ticket planning](ticket-planning.md) | Labels, assignment, size, priority, relationships, and Project status |
 | [Incidents](incidents.md) | Reports, evidence, linked response work and resolution |
 | [GitHub CLI](github-cli.md) | Issues, native relationships, Markdown uploads and PR commands |
 | [Ticket hierarchy](ticket-hierarchy.md) | Backend starting order and cross-repository boundaries |
 | [Stack](stack.md) | Confirmed Rust/REST choices and pending technical decisions |
 | [Content model](content-model.md) | Product invariants and links to the frontend decisions |
+| [Testing](testing.md) | Rust test framework, local commands, PostgreSQL fixtures and CI |
 
 [AGENTS.md](../../AGENTS.md) points future sessions to this process.
 [CONTRIBUTING.md](../../CONTRIBUTING.md) is the contributor entry point.

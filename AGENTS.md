@@ -22,6 +22,11 @@ and [ticket hierarchy](docs/dev/ticket-hierarchy.md) before designing contracts.
 
 ## Issues and analysis
 
+- Follow [ticket planning](docs/dev/ticket-planning.md) for every issue: set its
+  `Type:` label, assignee, Project Foltivo priority and size at creation; add
+  native parent/dependency relationships; apply `Component:` only after solution
+  selection and `Disposition:` when ready to close; update project status through
+  analysis and delivery.
 - Work items have exactly Summary, Scope, Analysis, Solution and Details.
 - Fill Summary/Scope at creation; leave other sections pending until their stage.
 - No Acceptance criteria, Implementation plan or Closeout sections.
