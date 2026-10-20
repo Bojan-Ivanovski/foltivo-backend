@@ -46,6 +46,8 @@ The subsequently authorized local startup compiled successfully; health, databas
 readiness and session bootstrap through the frontend returned 200. Full behavioral
 parity has not been verified. Automated coverage is tracked in
 [backend #19](https://github.com/Bojan-Ivanovski/foltivo-backend/issues/19).
+See the [Rust testing guide](docs/dev/testing.md) for the selected test framework,
+disposable PostgreSQL fixtures, and the workspace test command.
 
 ## Product and work tracking
 
