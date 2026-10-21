@@ -32,7 +32,6 @@ async fn dispatch(
     let mut response = if path == "/health" && (method == Method::GET || method == Method::HEAD) {
         json_response(200, json!({"status":"ok"}))
     } else if path == "/ready" && (method == Method::GET || method == Method::HEAD) {
-        use sea_orm::ConnectionTrait;
         match tokio::time::timeout(Duration::from_secs(2), service.db.ping()).await {
             Ok(Ok(())) => json_response(200, json!({"status":"ready"})),
             _ => json_response(503, json!({"status":"unavailable"})),
@@ -723,4 +722,107 @@ fn route<'a>(path: &'a str, method: &Method) -> Option<(&'static str, &'a str)> 
         }
     };
     Some(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{auth::Service, config::connect, test_common::config};
+
+    async fn service(secure: bool) -> Service {
+        let mut cfg =
+            config("postgres://fixture:synthetic@127.0.0.1:1/unavailable?sslmode=disable");
+        cfg.trusted_proxies = vec!["10.0.0.0/24".parse().unwrap()];
+        if secure {
+            cfg.origin = "https://foltivo.com".into();
+            cfg.secure_cookies = true;
+        }
+        Service::new(connect(&cfg.database_url).await.unwrap(), cfg)
+            .await
+            .unwrap()
+    }
+    #[tokio::test]
+    async fn trusted_proxy_chain_is_bounded_parsed_and_cannot_be_spoofed_by_direct_clients() {
+        let service = service(false).await;
+        for (remote, forwarded, expected) in [
+            ("192.0.2.10:80", "198.51.100.1", "192.0.2.10"),
+            ("10.0.0.2:80", "198.51.100.1", "198.51.100.1"),
+            (
+                "10.0.0.2:80",
+                "192.0.2.5, 198.51.100.1, 10.0.0.3",
+                "198.51.100.1",
+            ),
+            ("10.0.0.2:80", "invalid", "10.0.0.2"),
+            ("10.0.0.2:80", "198.51.100.1:123", "10.0.0.2"),
+            (
+                "[::ffff:10.0.0.2]:80",
+                "::ffff:198.51.100.1",
+                "198.51.100.1",
+            ),
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert("x-forwarded-for", forwarded.parse().unwrap());
+            assert_eq!(peer(&service, remote.parse().unwrap(), &headers), expected);
+        }
+        let direct = "10.0.0.2:80".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.append("x-forwarded-for", "192.0.2.1".parse().unwrap());
+        headers.append("x-forwarded-for", "192.0.2.2".parse().unwrap());
+        assert_eq!(peer(&service, direct, &headers), "10.0.0.2");
+        for invalid in ["192.0.2.1,".repeat(17), "x".repeat(1025)] {
+            headers.clear();
+            headers.insert("x-forwarded-for", invalid.parse().unwrap());
+            assert_eq!(peer(&service, direct, &headers), "10.0.0.2");
+        }
+    }
+    #[tokio::test]
+    async fn secure_host_cookie_has_no_domain_and_safe_error_preserves_retry_after() {
+        let service = service(true).await;
+        let mut response = json_response(200, json!({}));
+        cookie(&service, &mut response, None);
+        let cookie = response.headers()["set-cookie"].to_str().unwrap();
+        assert!(cookie.starts_with("__Host-foltivo_session="));
+        assert!(cookie.contains("Secure"));
+        assert!(
+            cookie.contains("HttpOnly")
+                && cookie.contains("SameSite=Lax")
+                && cookie.contains("Max-Age=0")
+        );
+        assert!(!cookie.contains("Domain="));
+        let mut error = Error::new(429, "rate_limited", "Wait and retry.");
+        error.retry_after = 12;
+        let response = error.into_response();
+        assert_eq!(response.status(), 429);
+        assert_eq!(response.headers()["retry-after"], "12");
+    }
+    #[test]
+    fn cookie_parser_and_user_agent_cleanup_preserve_valid_unicode() {
+        let mut headers = HeaderMap::new();
+        headers.append(
+            header::COOKIE,
+            "other=x; foltivo_session=\"abc\"".parse().unwrap(),
+        );
+        assert_eq!(token(&headers, "foltivo_session"), "abc");
+        headers.insert(
+            header::USER_AGENT,
+            HeaderValue::from_bytes(b"Browser \xff\xce\xb1").unwrap(),
+        );
+        assert_eq!(user_agent(&headers), "Browser α");
+    }
+}
+
+#[cfg(test)]
+mod decoder_limits {
+    use super::*;
+    #[tokio::test]
+    async fn exact_body_limit_is_enforced_even_for_valid_small_objects_padded_with_whitespace() {
+        for (length, valid) in [(16384, true), (16385, false)] {
+            let input = format!("{{}}{}", " ".repeat(length - 2));
+            let request = Request::builder()
+                .header("content-type", "application/json; charset=utf-8")
+                .body(Body::from(input))
+                .unwrap();
+            assert_eq!(body(request, Some(&[])).await.is_ok(), valid, "{length}");
+        }
+    }
 }

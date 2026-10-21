@@ -54,7 +54,20 @@ tower = { version = "0.5", features = ["util"] }
 [dev-dependencies]
 rstest.workspace = true
 foltivo-test-support = { path = "test-support" }
+openssl = "0.10"
 
 [profile.release]
 lto = "thin"
 strip = true
+
+# Exercise the production password policy without debug-mode hashing overhead.
+[profile.test.package.argon2]
+opt-level = 3
+
+# Large protocol/integration binaries do not need debug symbols in routine CI.
+[profile.test]
+debug = 0
+incremental = false
+
+[profile.test.package.blake2]
+opt-level = 3

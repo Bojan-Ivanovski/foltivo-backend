@@ -1,0 +1,9 @@
+{
+  "baseline": "6fc5145a7f0983dd1a3c92a44216ec9de041df55",
+  "ciphertext": "AAECAwQFBgcICQoLNw8AJ74ZAV3xXnaKpvzg+0yH4uP8Ndo/Re3oIGQMk8UgsyCpuYTXC2X0+xX3azKa+HrQO963kHTGeXA95t9uvA4VqMnd5xY2OGFS/M/WeUXdrTJGv4Q8f/ZeYURw",
+  "csrf": "DZe5UdM8MLwwk7sw8_zICVsp9uHT8hWEBqq4CQmg3lA",
+  "key": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+  "plaintext": "{\"To\":\"compat@example.com\",\"Subject\":\"Go fixture\",\"Body\":\"Synthetic message\"}",
+  "purpose": "email-outbox/v1",
+  "token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}

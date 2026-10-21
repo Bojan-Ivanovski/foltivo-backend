@@ -68,24 +68,7 @@ impl Service {
             .map_err(|_| Error::unavailable())?;
         let last: i64 = get(&r, "last_step")?;
         let step = Utc::now().timestamp() / 30;
-        let mut accepted = None;
-        for candidate in [step, step - 1, step + 1] {
-            let mut mac =
-                <Hmac<Sha1> as Mac>::new_from_slice(&secret).map_err(|_| Error::unavailable())?;
-            mac.update(&(candidate as u64).to_be_bytes());
-            let digest = mac.finalize().into_bytes();
-            let offset = (digest[19] & 15) as usize;
-            let number = u32::from_be_bytes(
-                digest[offset..offset + 4]
-                    .try_into()
-                    .map_err(|_| Error::unavailable())?,
-            ) & 0x7fffffff;
-            let expected = format!("{:06}", number % 1_000_000);
-            if bool::from(expected.as_bytes().ct_eq(code.as_bytes())) && candidate > last {
-                accepted = Some(candidate);
-                break;
-            }
-        }
+        let accepted = accepted_totp_step(&secret, code, last, step);
         exec(
             tx,
             "UPDATE auth_totp SET last_step=$2 WHERE user_id=$1",
@@ -312,4 +295,47 @@ pub async fn factor_change(tx: &DatabaseTransaction, a: &Account, s: &Session) -
     )
     .await?;
     Ok(())
+}
+
+fn accepted_totp_step(secret: &[u8], code: &str, last: i64, step: i64) -> Option<i64> {
+    let mut accepted = None;
+    for candidate in [step, step - 1, step + 1] {
+        let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(secret).expect("HMAC accepts any key");
+        mac.update(&(candidate as u64).to_be_bytes());
+        let digest = mac.finalize().into_bytes();
+        let offset = (digest[19] & 15) as usize;
+        let number = u32::from_be_bytes(
+            digest[offset..offset + 4]
+                .try_into()
+                .expect("four-byte TOTP truncation"),
+        ) & 0x7fffffff;
+        let expected = format!("{:06}", number % 1_000_000);
+        if bool::from(expected.as_bytes().ct_eq(code.as_bytes())) && candidate > last {
+            accepted = Some(candidate);
+            break;
+        }
+    }
+    accepted
+}
+
+#[cfg(test)]
+mod tests {
+    use super::accepted_totp_step;
+
+    #[rstest::rstest]
+    #[case(59, "287082")]
+    #[case(1111111109, "081804")]
+    #[case(1111111111, "050471")]
+    #[case(1234567890, "005924")]
+    #[case(2000000000, "279037")]
+    #[case(20000000000, "353130")]
+    fn rfc6238_sha1_vectors_and_replay(#[case] unix: i64, #[case] code: &str) {
+        let secret = b"12345678901234567890";
+        let step = unix / 30;
+        assert_eq!(accepted_totp_step(secret, code, -1, step), Some(step));
+        assert_eq!(accepted_totp_step(secret, code, step, step), None);
+        assert_eq!(accepted_totp_step(secret, code, -1, step - 1), Some(step));
+        assert_eq!(accepted_totp_step(secret, code, -1, step + 1), Some(step));
+        assert_eq!(accepted_totp_step(secret, code, -1, step + 2), None);
+    }
 }

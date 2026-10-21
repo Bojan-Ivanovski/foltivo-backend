@@ -137,10 +137,13 @@ impl Session {
         Ok(())
     }
     pub fn recent(&self) -> Result<()> {
+        self.recent_at(Utc::now())
+    }
+    fn recent_at(&self, now: DateTime<Utc>) -> Result<()> {
         self.authenticated()?;
         if self
             .recent_auth_at
-            .is_none_or(|t| Utc::now() - t > Duration::minutes(5))
+            .is_none_or(|t| now - t > Duration::minutes(5))
         {
             return Err(Error::new(
                 403,
@@ -176,6 +179,8 @@ pub struct Service {
     pub mailer: Mailer,
     pub webauthn: Arc<WebauthnCore>,
     pub client: reqwest::Client,
+    #[cfg(test)]
+    oauth_test_endpoints: Option<Arc<std::collections::HashMap<String, String>>>,
 }
 impl Service {
     pub async fn new(db: DatabaseConnection, config: Config) -> Result<Self> {
@@ -192,6 +197,8 @@ impl Service {
         );
         Ok(Self {
             db,
+            #[cfg(test)]
+            oauth_test_endpoints: None,
             config: Arc::new(config),
             passwords: crypto::Passwords::new().await?,
             secrets,
@@ -203,5 +210,67 @@ impl Service {
                 .build()
                 .map_err(|_| Error::unavailable())?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn assurance_precedence_and_recent_auth_five_minute_boundary() {
+        let now = DateTime::parse_from_rfc3339("2026-10-20T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let mut session = Session {
+            user: None,
+            state: String::new(),
+            csrf_token: String::new(),
+            methods: Methods {
+                password: false,
+                totp: false,
+                passkey: false,
+            },
+            id: String::new(),
+            token: crypto::token(),
+            created_at: now,
+            expires_at: now + Duration::hours(1),
+            recent_auth_at: Some(now - Duration::minutes(5)),
+            user_version: 1,
+            mfa: false,
+            totp_enabled: true,
+        };
+        session.derive();
+        assert_eq!(session.state, "anonymous");
+        assert!(session.recent_at(now).is_err());
+        session.user = Some(User {
+            id: "fixture".into(),
+            email: "fixture@example.com".into(),
+            name: "Fixture".into(),
+            email_verified: false,
+            library_id: "library".into(),
+        });
+        session.derive();
+        assert_eq!(session.state, "verification_required");
+        assert!(session.recent_at(now).is_err());
+        session.user.as_mut().unwrap().email_verified = true;
+        session.derive();
+        assert_eq!(session.state, "mfa_required");
+        assert!(session.recent_at(now).is_err());
+        session.mfa = true;
+        session.derive();
+        assert_eq!(session.state, "authenticated");
+        session.recent_at(now).unwrap();
+        assert!(session.recent_at(now + Duration::nanoseconds(1)).is_err());
+        let public = serde_json::to_value(&session).unwrap();
+        for hidden in [
+            "token",
+            "id",
+            "userVersion",
+            "mfa",
+            "recentAuthAt",
+            "expiresAt",
+        ] {
+            assert!(public.get(hidden).is_none(), "{hidden}");
+        }
     }
 }

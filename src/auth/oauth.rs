@@ -10,6 +10,19 @@ pub struct OAuthCallback {
     pub grant: String,
 }
 impl Service {
+    // Production URLs remain fixed. Unit protocol tests redirect only transport
+    // destinations; issuer, audience, nonce and signature verification are unchanged.
+    fn oauth_endpoint(&self, endpoint: &str) -> String {
+        #[cfg(test)]
+        if let Some(endpoints) = &self.oauth_test_endpoints {
+            return endpoints
+                .get(endpoint)
+                .expect("unexpected provider network endpoint")
+                .clone();
+        }
+        endpoint.to_owned()
+    }
+
     pub async fn providers(&self, s: &Session) -> Result<Vec<Json>> {
         let mut result = vec![];
         for provider in ["github", "google"] {
@@ -142,11 +155,11 @@ impl Service {
         .map_err(|_| Error::unavailable())?;
         let response = self
             .client
-            .post(if provider == "github" {
+            .post(self.oauth_endpoint(if provider == "github" {
                 "https://github.com/login/oauth/access_token"
             } else {
                 "https://oauth2.googleapis.com/token"
-            })
+            }))
             .header("Accept", "application/json")
             .form(&[
                 ("client_id", cfg.client_id.as_str()),
@@ -218,7 +231,9 @@ impl Service {
             }
             let discovery = bounded_json(
                 self.client
-                    .get("https://accounts.google.com/.well-known/openid-configuration")
+                    .get(self.oauth_endpoint(
+                        "https://accounts.google.com/.well-known/openid-configuration",
+                    ))
                     .send()
                     .await
                     .map_err(|_| Error::unavailable())?,
@@ -239,7 +254,7 @@ impl Service {
             let jwks: jsonwebtoken::jwk::JwkSet = serde_json::from_value(
                 bounded_json(
                     self.client
-                        .get(jwks_url)
+                        .get(self.oauth_endpoint(jwks_url))
                         .send()
                         .await
                         .map_err(|_| Error::unavailable())?,
@@ -277,7 +292,7 @@ impl Service {
             .ok_or_else(invalid)?;
         let response = self
             .client
-            .get("https://api.github.com/user")
+            .get(self.oauth_endpoint("https://api.github.com/user"))
             .bearer_auth(access)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
@@ -373,3 +388,7 @@ async fn bounded_json(mut response: reqwest::Response) -> Result<Json> {
     }
     serde_json::from_slice(&bytes).map_err(|_| Error::unavailable())
 }
+
+#[cfg(test)]
+#[path = "oauth_tests.rs"]
+mod tests;
